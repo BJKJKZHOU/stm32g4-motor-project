@@ -48,6 +48,9 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+
+    Core/Src/vofa_com_threadx.c
+
     Communication/Src/Vofa.c
     Communication/Src/Vofa_STM32G474.c
 )

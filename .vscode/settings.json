@@ -2,6 +2,8 @@
     "files.associations": {
         "cstdio": "c",
         "usart.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "tim.h": "c",
+        "vofa_com_threadx.h": "c"
     }
 }
