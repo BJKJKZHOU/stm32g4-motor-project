@@ -1,0 +1,57 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Cortex Debug (OpenOCD)",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/Debug/stm32g4-motor-project-ex.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "openocd",
+            "device": "STM32G474RE",
+            "svdFile": "./STM32G474xx.svd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "parsed",
+            "rtos": "ThreadX",
+            "configFiles": [
+                "st_nucleo_g4.cfg"
+            ]
+        },
+        {
+            "name": "STM32 Programmer CLI",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/Debug/stm32g4-motor-project-ex.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "stutil",
+            "device": "STM32G474RE",
+            "svdFile": "./STM32G474xx.svd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "parsed",
+            "rtos": "threadx"
+        },
+        {
+            "name": "ST-LINK GDB Server",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/Debug/stm32g4-motor-project-ex.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "external",
+            "serverpath": "E:\\ST\\STM32CubeCLT_1.16.0\\STLink-gdb-server\\bin\\ST-LINK_gdbserver.exe",
+            "serverArgs": [
+                "-e",
+                "-cp", "E:\\ST\\STM32CubeCLT_1.16.0\\STLink-gdb-server\\bin",
+                "-l", "2",
+                "-d",
+                "-p", "61234"
+            ],
+            "gdbTarget": "localhost:61234",
+            "gdbPath": "arm-none-eabi-gdb",
+            "device": "STM32G474RE",
+            "svdFile": "./STM32G474xx.svd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "parsed",
+            "rtos": "threadx"
+        }
+    ]
+}

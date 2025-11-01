@@ -1,0 +1,41 @@
+{
+    "configurations": [
+        {
+            "name": "STM32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/Core/Inc",
+                "${workspaceFolder}/Drivers/CMSIS/Include",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32G4xx/Include",
+                "${workspaceFolder}/Drivers/STM32G4xx_HAL_Driver/Inc",
+                "${workspaceFolder}/Drivers/STM32G4xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/AZURE_RTOS/App",
+                "${workspaceFolder}/FileX/App",
+                "${workspaceFolder}/USBX/App",
+                "${workspaceFolder}/Middlewares/ST/filex/common/inc",
+                "${workspaceFolder}/Middlewares/ST/filex/ports/generic/inc",
+                "${workspaceFolder}/Middlewares/ST/usbx/common/core/inc",
+                "${workspaceFolder}/Middlewares/ST/usbx/ports/generic/inc",
+                "${workspaceFolder}/Middlewares/ST/threadx/common/inc",
+                "${workspaceFolder}/Middlewares/ST/threadx/ports/cortex_m4/gnu/inc",
+                "${workspaceFolder}/Middlewares/ST/threadx/utility/low_power"
+            ],
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32G474xx",
+                "STM32G474RE",
+                "TX_INCLUDE_USER_DEFINE_FILE",
+                "FX_INCLUDE_USER_DEFINE_FILE",
+                "UX_INCLUDE_USER_DEFINE_FILE",
+                "__weak=__attribute__((weak))",
+                "__packed=__attribute__((__packed__))"
+            ],
+            "compilerPath": "arm-none-eabi-gcc",
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "gcc-arm",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}
