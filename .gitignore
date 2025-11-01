@@ -1,0 +1,57 @@
+# Build directories
+build/
+Debug/
+Release/
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+
+# Object files
+*.o
+*.obj
+*.d
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# STM32CubeMX generated files (保留.ioc文件，但排除其他临时文件)
+*.mxproject
+.project
+.cproject
+.settings/
+
+# 编译输出
+*.axf
+*.exe
+*.a
+
+# 调试文件
+*.dSYM/
+*.su
+
+# 临时文件
+*.tmp
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 排除Drivers文件夹（STM32 HAL库文件，不需要版本控制）
+Drivers/
+
+# 第三方中间件库
+Middlewares/
