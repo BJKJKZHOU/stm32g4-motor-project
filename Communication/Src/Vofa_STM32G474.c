@@ -4,8 +4,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdio.h>  // 添加stdio.h以支持snprintf
 
 extern UART_HandleTypeDef hlpuart1;
+
+// 通道数据存储数组（先声明）
+static float channel_data[MAX_RECEIVING_CHANNELS] = {0};
+
+// 通道名称存储数组（先声明）
+static char channel_names[MAX_RECEIVING_CHANNELS][32] = {
+    "RECEIVING_CHANNEL_0", "RECEIVING_CHANNEL_1", "RECEIVING_CHANNEL_2", "RECEIVING_CHANNEL_3",
+    "RECEIVING_CHANNEL_4", "RECEIVING_CHANNEL_5", "RECEIVING_CHANNEL_6", "RECEIVING_CHANNEL_7",
+    "RECEIVING_CHANNEL_8", "RECEIVING_CHANNEL_9", "RECEIVING_CHANNEL_10", "RECEIVING_CHANNEL_11",
+    "RECEIVING_CHANNEL_12", "RECEIVING_CHANNEL_13", "RECEIVING_CHANNEL_14", "RECEIVING_CHANNEL_15"};
 
 // 双缓冲接收缓冲区
 uint8_t rx_buffer[2][RX_BUFFER_SIZE];
@@ -26,7 +37,7 @@ void Vofa_SendDataCallBack(Vofa_HandleTypedef *handle, uint8_t *data, uint16_t l
     HAL_UART_Transmit_DMA(&hlpuart1, data, length);
 }
 
-// UART发送完成回调函数 - 保持不变
+ 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart == &hlpuart1)
@@ -37,22 +48,30 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 uint16_t Vofa_GetReceivedData(uint8_t *buffer, uint16_t buffer_len)
 {
-    // 获取非活动缓冲区的数据
-    uint8_t inactive_buffer = active_buffer ^ 1;
+    // 原子读取当前活动缓冲区索引和非活动缓冲区的数据长度
+    uint8_t inactive_buffer;
+    uint16_t copy_len = 0;
+    
+    // 进入临界区，防止DMA回调在读取过程中切换缓冲区
+    __disable_irq();
+    uint8_t current_active = active_buffer;
+    inactive_buffer = current_active ^ 1;
+    uint16_t data_len = rx_data_length[inactive_buffer];
+    __enable_irq();
 
-    if (rx_data_length[inactive_buffer] == 0)
+    if (data_len == 0)
     {
         return 0;
     }
 
-    uint16_t copy_len = (rx_data_length[inactive_buffer] < buffer_len) ? rx_data_length[inactive_buffer] : buffer_len;
+    copy_len = (data_len < buffer_len) ? data_len : buffer_len;
     memcpy(buffer, rx_buffer[inactive_buffer], copy_len);
 
-    // 清空非活动缓冲区的数据长度，表示数据已被读取
-    uint16_t data_len = rx_data_length[inactive_buffer];
+    // 清空已读取的数据长度，实现单次消费语义
     rx_data_length[inactive_buffer] = 0;
 
-    return data_len;
+    // 返回实际复制的长度
+    return copy_len;
 }
 
 void Vofa_STM32G474_Init(void)
@@ -77,9 +96,6 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     // 记录当前活动缓冲区的数据长度
     rx_data_length[active_buffer] = (Size < RX_BUFFER_SIZE) ? Size : RX_BUFFER_SIZE;
 
-    // 解析接收到的数据
-    Vofa_ParseCustomProtocol(rx_buffer[active_buffer ^ 1], rx_data_length[active_buffer ^ 1]);
-
     // 切换到另一个缓冲区
     active_buffer ^= 1;
 
@@ -87,14 +103,30 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     HAL_UARTEx_ReceiveToIdle_DMA(huart, rx_buffer[active_buffer], RX_BUFFER_SIZE);
 }
 
-// 通道数据存储数组
-static float channel_data[MAX_RECEIVING_CHANNELS] = {0};
+// 任务上下文中的协议解析函数（修复数据竞争）
+void Vofa_ParseReceivedData(void)
+{
+    // 使用局部变量确保一致性
+    uint8_t inactive_buffer;
+    uint16_t data_len;
+    
+    // 进入临界区，防止DMA回调在读取过程中切换缓冲区
+    __disable_irq();
+    inactive_buffer = active_buffer ^ 1;
+    data_len = rx_data_length[inactive_buffer];
+    __enable_irq();
+    
+    if (data_len > 0 && data_len <= RX_BUFFER_SIZE) {
+        uint8_t local_buffer[RX_BUFFER_SIZE];
+        memcpy(local_buffer, rx_buffer[inactive_buffer], data_len);
+        
+        // 快速清空标记
+        rx_data_length[inactive_buffer] = 0;
+        
+        Vofa_ParseCustomProtocol(local_buffer, data_len);
+    }
+}
 
-// 通道名称存储数组
-static char channel_names[MAX_RECEIVING_CHANNELS][32] = {
-    "RECEIVING_CHANNEL_1", "RECEIVING_CHANNEL_2", "RECEIVING_CHANNEL_3", "RECEIVING_CHANNEL_4",
-    "RECEIVING_CHANNEL_5", "RECEIVING_CHANNEL_6", "RECEIVING_CHANNEL_7", "RECEIVING_CHANNEL_8",
-    "RECEIVING_CHANNEL_9", "RECEIVING_CHANNEL_10", "", "", "", "", "", ""};
 
 // 自定义协议解析函数
 void Vofa_ParseCustomProtocol(uint8_t *data, uint16_t length)
@@ -180,29 +212,12 @@ float Vofa_GetChannelData(Vofa_ChannelTypeDef channel)
     return 0.0f;
 }
 
-// 添加自定义通道（支持名称设置）
-uint8_t Vofa_AddCustomChannel(const char *channel_name, uint8_t channel_id)
-{
-    if (channel_id < MAX_RECEIVING_CHANNELS)
-    {
-        // 设置通道名称
-        if (channel_name != NULL && strlen(channel_name) > 0)
-        {
-            strncpy(channel_names[channel_id], channel_name, 31);
-            channel_names[channel_id][31] = '\0';
-        }
-
-        channel_data[channel_id] = 0.0f; // 初始化通道数据
-        return 1;                        // 成功
-    }
-    return 0; // 失败
-}
-
 // 修改通道名称
 uint8_t Vofa_SetChannelName(uint8_t channel_id, const char *new_name)
 {
-    if (channel_id < MAX_RECEIVING_CHANNELS && new_name != NULL && strlen(new_name) > 0)
+    if (channel_id < MAX_RECEIVING_CHANNELS && new_name != NULL)
     {
+        // 即使新名称为空，也允许设置
         strncpy(channel_names[channel_id], new_name, 31);
         channel_names[channel_id][31] = '\0';
         return 1; // 成功

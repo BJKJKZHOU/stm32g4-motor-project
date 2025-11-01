@@ -3,15 +3,16 @@
 	Copyright (c) 2021 Jelin
 */
 
+#include <stdint.h>
+#include <stdbool.h>
+
+
 #ifndef VOFA_H
 #define VOFA_H
 
 /* User configuration params */
-#define VOFA_BUFFER_SIZE 100	   // Send/Receive data buffer length
-#define VOFA_CMD_TAIL {0xAF, 0xFA} // Command frame tail
-
-#include <stdint.h>
-#include <stdbool.h>
+#define VOFA_BUFFER_SIZE 128	   // Send/Receive data buffer length
+#define VOFA_CMD_TAIL {0x00, 0x00, 0x00, 0x00} // Command frame tail
 
 #ifdef __cplusplus
 extern "C"
@@ -58,28 +59,28 @@ extern "C"
 	/* channel data management functions */
 	typedef enum
 	{
-		RECEIVING_CHANNEL_1 = 0,
-		RECEIVING_CHANNEL_2 = 1,
-		RECEIVING_CHANNEL_3 = 2,
-		RECEIVING_CHANNEL_4 = 3,
-		RECEIVING_CHANNEL_5 = 4,
-		RECEIVING_CHANNEL_6 = 5,
-		RECEIVING_CHANNEL_7 = 6,
-		RECEIVING_CHANNEL_8 = 7,
-		RECEIVING_CHANNEL_9 = 8,
-		RECEIVING_CHANNEL_10 = 9,
-		RECEIVING_CHANNEL_11 = 10,
-		RECEIVING_CHANNEL_12 = 11,
-		RECEIVING_CHANNEL_13 = 12,
-		RECEIVING_CHANNEL_14 = 13,
-		RECEIVING_CHANNEL_15 = 14,
-		RECEIVING_CHANNEL_16 = 15,
+		RECEIVING_CHANNEL_0 = 0,
+		RECEIVING_CHANNEL_1 = 1,
+		RECEIVING_CHANNEL_2 = 2,
+		RECEIVING_CHANNEL_3 = 3,
+		RECEIVING_CHANNEL_4 = 4,
+		RECEIVING_CHANNEL_5 = 5,
+		RECEIVING_CHANNEL_6 = 6,
+		RECEIVING_CHANNEL_7 = 7,
+		RECEIVING_CHANNEL_8 = 8,
+		RECEIVING_CHANNEL_9 = 9,
+		RECEIVING_CHANNEL_10 = 10,
+		RECEIVING_CHANNEL_11 = 11,
+		RECEIVING_CHANNEL_12 = 12,
+		RECEIVING_CHANNEL_13 = 13,
+		RECEIVING_CHANNEL_14 = 14,
+		RECEIVING_CHANNEL_15 = 15,
 		MAX_RECEIVING_CHANNELS = 16
 	} Vofa_ChannelTypeDef;
 
 	float Vofa_GetChannelData(Vofa_ChannelTypeDef channel);
-	uint8_t Vofa_AddCustomChannel(const char *channel_name, uint8_t channel_id);
-
+	// uint8_t Vofa_AddCustomChannel(const char *channel_name, uint8_t channel_id); // 删除重复的函数
+	
 	/* channel name management functions */
 	uint8_t Vofa_SetChannelName(uint8_t channel_id, const char *new_name);
 	const char *Vofa_GetChannelName(uint8_t channel_id);
