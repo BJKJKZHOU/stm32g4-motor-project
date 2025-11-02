@@ -3,6 +3,7 @@
 
 #include "Vofa.h"
 #include "stm32g4xx_hal.h"
+#include <math.h>
 
 // 双缓冲接收配置
 #define RX_BUFFER_SIZE 128
@@ -12,7 +13,7 @@ extern volatile uint16_t rx_data_length[2];  // 两个缓冲区的数据长度
 
 void Vofa_STM32G474_Init(void);
 
-// 获取接收到的原始数据（双缓冲版本）
+// 获取接收到的原始数据
 uint16_t Vofa_GetReceivedData(uint8_t *buffer, uint16_t max_length);
 
 // 任务上下文中的协议解析函数

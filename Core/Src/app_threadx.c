@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "app_threadx.h"
-#include "vofa_com_threadx.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */

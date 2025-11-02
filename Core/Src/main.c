@@ -188,6 +188,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 1 */
 
   if (htim->Instance == TIM2) {
+    // �?化信号量处理，直接释放信号量
     tx_semaphore_put(&vofa_timer_semaphore);
   }
 
