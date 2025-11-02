@@ -19,6 +19,9 @@ uint16_t Vofa_GetReceivedData(uint8_t *buffer, uint16_t max_length);
 // 任务上下文中的协议解析函数
 void Vofa_ParseReceivedData(void);
 
+// 直接从指定缓冲区解析数据
+void Vofa_ParseReceivedDataFromBuffer(uint8_t buffer_index);
+
 // 自定义协议解析函数
 void Vofa_ParseCustomProtocol(uint8_t *data, uint16_t length);
 
