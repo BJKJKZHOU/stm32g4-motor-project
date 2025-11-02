@@ -5,5 +5,6 @@
         "stdbool.h": "c",
         "tim.h": "c",
         "vofa_com_threadx.h": "c"
-    }
+    },
+    "cortex-debug.variableUseNaturalFormat": true
 }
