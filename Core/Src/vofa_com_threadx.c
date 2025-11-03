@@ -1,52 +1,10 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file    vofa_com_threadx.c
-  * @author  MCD Application Team
-  * @brief   VOFA communication thread implementation
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2020-2021 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
 
-/* Includes ------------------------------------------------------------------*/
 
 #include "vofa_com_threadx.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 
-
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
 TX_THREAD vofa_com_thread;
-/* USER CODE BEGIN PV */
+
 
 /* 信号量定义 */
 TX_SEMAPHORE vofa_timer_semaphore;
@@ -57,30 +15,18 @@ Vofa_HandleTypedef vofa_handle;
 #define TEST_DATA_COUNT 15 //发送到上位机通道数
 static float test_data[TEST_DATA_COUNT] = {0};
 static uint32_t time_counter = 0;
-/* USER CODE END PV */
 
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
 
 void Vofa_UpdateTestData(void);
 
-/* USER CODE END PFP */
-
-/**
-  * @brief  VOFA Communication ThreadX Initialization.
-  * @param memory_ptr: memory pointer
-  * @retval int
-  */
 UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
   TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
-  /* USER CODE BEGIN VOFA_Com_ThreadX_MEM_POOL */
 
-  /* USER CODE END VOFA_Com_ThreadX_MEM_POOL */
   CHAR *pointer;
 
-  /* USER CODE BEGIN VOFA_Com_ThreadX_Init */
+
 
   // 先创建信号量
   ret = tx_semaphore_create(&vofa_timer_semaphore, "VOFA Timer Semaphore", 0);
@@ -89,9 +35,7 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
     return ret;
   }
 
-  /* USER CODE END VOFA_Com_ThreadX_Init */
-
-  /* Allocate the stack for vofa com thread  */
+  /* Allocate the stack for vofa com thread.  */
   if (tx_byte_allocate(byte_pool, (VOID**) &pointer,
                        VOFA_COM_STACK_SIZE, TX_NO_WAIT) != TX_SUCCESS)
   {
@@ -115,7 +59,8 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 void vofa_com_thread_entry(ULONG thread_input)
 {
   /* USER CODE BEGIN vofa_com_thread_entry */
-  Vofa_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
+
+  Vofa_STM32G474_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
   
   // 设置接收通道名称
   Vofa_SetChannelName(RECEIVING_CHANNEL_10, "TEST_DATA_1");
@@ -140,10 +85,10 @@ void vofa_com_thread_entry(ULONG thread_input)
     tx_thread_sleep(1);
   }
 
-  /* USER CODE END vofa_com_thread_entry */
+
 }
 
-/* USER CODE BEGIN 1 */
+
 
 void Vofa_UpdateTestData(void)
 {
@@ -194,5 +139,3 @@ void Vofa_UpdateTestData(void)
   // /* 15. 接收数据平均值 */
   // test_data[14] = (ch10_data + ch11_data + ch12_data) / 3.0f;
 }
-
-/* USER CODE END 1 */

@@ -4,10 +4,6 @@
 */
 
 #include "Vofa.h"
-#include "Vofa_STM32G474.h"
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
 
 // static const uint8_t cmdTail[] = VOFA_CMD_TAIL; //帧头未使用
 
@@ -29,9 +25,7 @@ void Vofa_Init(Vofa_HandleTypedef *handle, Vofa_ModeTypeDef mode)
     
     // 初始化TX缓冲区
     memset(handle->txBuffer, 0, VOFA_BUFFER_SIZE);
-    
-    // 调用硬件初始化
-    Vofa_STM32G474_Init();
+
 }
 
 void Vofa_JustFloat(Vofa_HandleTypedef *handle, float *data, uint16_t num)
@@ -55,16 +49,6 @@ void Vofa_JustFloat(Vofa_HandleTypedef *handle, float *data, uint16_t num)
     Vofa_SendDataCallBack(handle, handle->txBuffer, data_size + 4);
 }
 
-/* Commented out other send protocols - moved to end of file */
-
-// 简化的数据读取函数 - 使用双缓冲DMA机制
-uint16_t Vofa_ReadData(uint8_t *buffer, uint16_t bufferLen)
-{
-	// 调用硬件抽象层的双缓冲数据获取函数
-	return Vofa_GetReceivedData(buffer, bufferLen);
-}
-
-/* Commented out other receive protocols - moved to end of file */
 
 #ifdef __GNUC__
 __attribute__((weak)) void Vofa_SendDataCallBack(Vofa_HandleTypedef *handle, uint8_t *data, uint16_t length)

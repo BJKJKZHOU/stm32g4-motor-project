@@ -4,7 +4,11 @@
         "usart.h": "c",
         "stdbool.h": "c",
         "tim.h": "c",
-        "vofa_com_threadx.h": "c"
+        "vofa_com_threadx.h": "c",
+        "vofa_stm32g474.h": "c",
+        "stdarg.h": "c",
+        "vofa.h": "c",
+        "stdio.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

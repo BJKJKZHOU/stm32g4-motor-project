@@ -2,13 +2,14 @@
 	MIT License
 	Copyright (c) 2021 Jelin
 */
+#ifndef VOFA_H
+#define VOFA_H
 
 #include <stdint.h>
 #include <stdbool.h>
-
-
-#ifndef VOFA_H
-#define VOFA_H
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
 /* User configuration params */
 #define VOFA_BUFFER_SIZE 128	   // Send/Receive data buffer length
@@ -46,11 +47,6 @@ extern "C"
 	/* send data functions */
 	void Vofa_JustFloat(Vofa_HandleTypedef *handle, float *data, uint16_t num);
 
-	/* receive data functions - simplified to raw data only with double buffering */
-	uint16_t Vofa_ReadData(uint8_t *buffer, uint16_t bufferLen);
-
-	/* hardware abstraction layer functions */
-	uint16_t Vofa_GetReceivedData(uint8_t *buffer, uint16_t max_length);
 
 	/* user call back functions */
 	void Vofa_SendDataCallBack(Vofa_HandleTypedef *handle, uint8_t *data, uint16_t length);
@@ -78,12 +74,6 @@ extern "C"
 		MAX_RECEIVING_CHANNELS = 16
 	} Vofa_ChannelTypeDef;
 
-	float Vofa_GetChannelData(Vofa_ChannelTypeDef channel);
-	// uint8_t Vofa_AddCustomChannel(const char *channel_name, uint8_t channel_id); // 删除重复的函数
-	
-	/* channel name management functions */
-	uint8_t Vofa_SetChannelName(uint8_t channel_id, const char *new_name);
-	const char *Vofa_GetChannelName(uint8_t channel_id);
 
 #ifdef __cplusplus
 }

@@ -71,8 +71,9 @@ uint16_t Vofa_GetReceivedData(uint8_t *buffer, uint16_t len)
     return 0;
 }
 
-void Vofa_STM32G474_Init(void)
-{
+void Vofa_STM32G474_Init(Vofa_HandleTypedef *handle, Vofa_ModeTypeDef mode)
+{   
+    Vofa_Init(handle, mode);
     // 清空双缓冲区
     memset(rx_buffer[0], 0, RX_BUFFER_SIZE);
     memset(rx_buffer[1], 0, RX_BUFFER_SIZE);
