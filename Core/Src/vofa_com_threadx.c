@@ -1,4 +1,10 @@
 
+/**
+  ==============================================================================
+  * @file           : vofa_com_threadx.c
+  * @brief          : VOFA Communication ThreadX implementation file
+  ==============================================================================
+**/
 
 #include "vofa_com_threadx.h"
 
@@ -15,8 +21,9 @@ Vofa_HandleTypedef vofa_handle;
 
 #define TEST_DATA_COUNT 15 //发送到上位机通道数
 static float test_data[TEST_DATA_COUNT] = {0};
-static uint32_t time_counter = 0;
 
+
+static uint32_t time_counter = 0;
 
 void Vofa_UpdateTestData(void);
 
@@ -27,9 +34,7 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 
   CHAR *pointer;
 
-
-
-  // 先创建信号量
+  // 创建信号量
   ret = tx_semaphore_create(&vofa_timer_semaphore, "VOFA Timer Semaphore", 0);
   if (ret != TX_SUCCESS)
   {
@@ -57,9 +62,12 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
   * @param  thread_input: Hardcoded to 0.
   * @retval None
   */
+
+
+// Vofa通信线程入口函数
 void vofa_com_thread_entry(ULONG thread_input)
 {
-  /* USER CODE BEGIN vofa_com_thread_entry */
+
 
   Vofa_STM32G474_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
 
@@ -126,14 +134,14 @@ void Vofa_UpdateTestData(void)
   test_data[9] = fmodf(time * 0.5f, 2.0f) - 1.0f;
 
   /* 11. 接收数据1的返回（通道10） */
-  test_data[10] = Vofa_GetChannelData(RECEIVING_CHANNEL_0); // 将接收的数据放大2倍返回
+  test_data[10] = Vofa_GetChannelData(RECEIVING_CHANNEL_0); 
   
   /* 12. 接收数据2的返回（通道11） */
-  test_data[11] = Vofa_GetChannelData(RECEIVING_CHANNEL_1);// 将接收的数据加1返回
+  test_data[11] = Vofa_GetChannelData(RECEIVING_CHANNEL_1); 
   
   /* 13. 接收数据3的返回（通道12） */
-  test_data[12] = Vofa_GetChannelData(RECEIVING_CHANNEL_2); // 将接收的数据平方返回
-  
+  test_data[12] = Vofa_GetChannelData(RECEIVING_CHANNEL_2);   
+    
   // /* 14. 接收数据总和 */
   // test_data[13] = ch10_data + ch11_data + ch12_data;
   

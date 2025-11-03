@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "vofa_com_threadx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -88,14 +88,18 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   }
 
   /* USER CODE BEGIN App_ThreadX_Init */
-  
-  /* Initialize VOFA communication thread */
-  ret = VOFA_Com_ThreadX_Init(memory_ptr);
+  /* ================================================================================
+  *  用户的线程初始化区域
+  *  ================================================================================
+  */
+
+  ret = VOFA_Com_ThreadX_Init(memory_ptr); // 初始化VOFA通信线程
   if (ret != TX_SUCCESS)
   {
     return ret;
   }
   
+
   /* USER CODE END App_ThreadX_Init */
 
   return ret;

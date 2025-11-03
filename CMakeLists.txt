@@ -53,12 +53,17 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     Communication/Src/Vofa.c
     Communication/Src/Vofa_STM32G474.c
+
+    MotorControl/Src/PID_controller.c
+    MotorControl/Src/normalization.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     Communication/Inc
+    MotorControl/Inc
+    Drivers/CMSIS/DSP/Include
 )
 
 # Add project symbols (macros)

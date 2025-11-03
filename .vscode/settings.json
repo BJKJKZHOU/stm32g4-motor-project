@@ -11,7 +11,10 @@
         "stdio.h": "c",
         "ctype.h": "c",
         "math.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "stm32g4xx_hal.h": "c",
+        "normalization.h": "c",
+        "arm_math.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
