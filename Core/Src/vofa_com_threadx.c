@@ -2,6 +2,7 @@
 
 #include "vofa_com_threadx.h"
 
+#include <math.h>
 
 TX_THREAD vofa_com_thread;
 
@@ -61,7 +62,7 @@ void vofa_com_thread_entry(ULONG thread_input)
   /* USER CODE BEGIN vofa_com_thread_entry */
 
   Vofa_STM32G474_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
-  
+
   // 设置接收通道名称
   Vofa_SetChannelName(RECEIVING_CHANNEL_10, "TEST_DATA_1");
   Vofa_SetChannelName(RECEIVING_CHANNEL_11, "TEST_DATA_2"); 

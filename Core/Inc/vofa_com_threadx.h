@@ -2,7 +2,7 @@
   File Name          : vofa_com_threadx.h
   Description        : Header for vofa_com_threadx.c file.
                        This file contains the common defines of the application.
-                      vofa串口调试助手的通信线程
+                      vofa串口调试助手的通信线程·
    ======================================================================*/
 
 #ifndef __VOFA_COM_THREADX_H__
@@ -14,8 +14,6 @@ extern "C" {
 
 #include "tx_api.h"
 #include "tim.h"
-
-
 
 #include "Vofa_STM32G474.h"
 

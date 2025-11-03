@@ -1,12 +1,11 @@
-#include "Vofa.h"
-#include "usart.h"
+
 #include "Vofa_STM32G474.h"
+
+
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <stdio.h>
 
-extern UART_HandleTypeDef hlpuart1;
 
 // 通道数据存储数组 - 添加volatile标记
 static volatile float channel_data[MAX_RECEIVING_CHANNELS] = {0};

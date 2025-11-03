@@ -3,13 +3,16 @@
 
 #include "Vofa.h"
 #include "stm32g4xx_hal.h"
-#include <math.h>
+
+
+extern UART_HandleTypeDef hlpuart1;
 
 // 双缓冲接收配置
 #define RX_BUFFER_SIZE 128
 extern uint8_t rx_buffer[2][RX_BUFFER_SIZE]; // 双缓冲
 extern volatile uint8_t active_buffer;       // 当前活动缓冲区索引
 extern volatile uint16_t rx_data_length[2];  // 两个缓冲区的数据长度
+
 
 void Vofa_STM32G474_Init(Vofa_HandleTypedef *handle, Vofa_ModeTypeDef mode);
 
