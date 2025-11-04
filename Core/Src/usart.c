@@ -182,4 +182,16 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 
+/**
+  * @brief  printf重定向函数 - 将字符输出到LPUART1串口
+  * @param  ch: 要发送的字符
+  * @retval 发送的字符
+  */
+int __io_putchar(int ch)
+{
+    // 使用轮询方式发送单个字符到LPUART1
+    HAL_UART_Transmit(&hlpuart1, (uint8_t*)&ch, 1, 1000);
+    return ch;
+}
+
 /* USER CODE END 1 */

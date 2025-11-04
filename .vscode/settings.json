@@ -14,7 +14,11 @@
         "string.h": "c",
         "stm32g4xx_hal.h": "c",
         "normalization.h": "c",
-        "arm_math.h": "c"
+        "arm_math.h": "c",
+        "limits": "c",
+        "cmath": "c",
+        "compare": "c",
+        "type_traits": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

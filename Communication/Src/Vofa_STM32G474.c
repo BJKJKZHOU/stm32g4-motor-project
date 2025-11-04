@@ -81,7 +81,7 @@ void Vofa_STM32G474_Init(Vofa_HandleTypedef *handle, Vofa_ModeTypeDef mode)
     active_buffer = 0;
     latest_buffer = -1;
 
-    // 启动双缓冲DMA接收
+    // 串口空闲中断 
     HAL_UARTEx_ReceiveToIdle_DMA(&hlpuart1, rx_buffer[active_buffer], RX_BUFFER_SIZE);
 }
 

@@ -25,6 +25,7 @@ void Vofa_ParseReceivedData(void);
 // 直接从指定缓冲区解析数据
 void Vofa_ParseReceivedDataFromBuffer(uint8_t buffer_index);
 
+void Vofa_SendDataCallBack(Vofa_HandleTypedef *handle, uint8_t *data, uint16_t length);
 
 float Vofa_GetChannelData(Vofa_ChannelTypeDef channel);
 
