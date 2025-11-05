@@ -68,6 +68,9 @@ void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value)
 
 void MotorParams_PrintAll(uint8_t motor_id); // 输出指定电机的所有参数和描述
 
+// 浮点数格式化函数声明
+void format_float_value(char* buffer, int buffer_size, float value);
+
 #ifdef __cplusplus
 }
 

@@ -22,10 +22,22 @@ Vofa_HandleTypedef vofa_handle;
 #define TEST_DATA_COUNT 15 //发送到上位机通道数
 static float test_data[TEST_DATA_COUNT] = {0};
 
+// 全局状态变量，控制波形是否开启发送
+static uint8_t vofa_justfloat_enabled = 0;
 
 static uint32_t time_counter = 0;
 
 void Vofa_UpdateTestData(void);
+
+void Vofa_Plot_Start(void)
+{
+    vofa_justfloat_enabled = 1;
+}
+
+void Vofa_Plot_Stop(void)
+{
+    vofa_justfloat_enabled = 0;
+}
 
 UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 {
@@ -86,9 +98,10 @@ void vofa_com_thread_entry(ULONG thread_input)
     /* 更新测试数据 */
     Vofa_UpdateTestData();
     
+    if (vofa_justfloat_enabled){
     /* 发送数据到VOFA+ */
-    Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
-
+      Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
+    }
     time_counter++;  //测试数据的时间计数器
 
     tx_thread_sleep(1);

@@ -30,6 +30,7 @@
 /* USER CODE BEGIN Includes */
 
 #include "vofa_com_threadx.h"
+#include "motor_params.h"
 
 /* USER CODE END Includes */
 
@@ -101,6 +102,9 @@ int main(void)
   MX_USB_PCD_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
+
+  /* Initialize motor parameters */
+  MotorParams_Init();
 
   /* USER CODE END 2 */
 
@@ -188,7 +192,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 1 */
 
   if (htim->Instance == TIM2) {
-    // �?化信号量处理，直接释放信号量
+    // �?化信号量处理，直接释放信号量
     tx_semaphore_put(&vofa_timer_semaphore);
   }
 

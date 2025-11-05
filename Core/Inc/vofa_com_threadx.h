@@ -38,6 +38,10 @@ extern "C" {
 UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr);
 void vofa_com_thread_entry(ULONG thread_input);
 
+/* 波形控制函数 */
+void Vofa_Plot_Start(void);
+void Vofa_Plot_Stop(void);
+
 /* 信号量相关定义*/
 extern TX_SEMAPHORE vofa_timer_semaphore;
 

@@ -122,7 +122,9 @@ void Vofa_ParseReceivedDataFromBuffer(uint8_t buffer_index)
         // 立即清空标记
         rx_data_length[buffer_index] = 0;
         
-        Vofa_ParseCustomProtocol(local_buffer, data_len);
+        // 并行调用两个解析函数：通道数据解析和命令解析
+        Vofa_ParseCustomProtocol(local_buffer, data_len);  // 保持原有通道解析
+        Vofa_ParseCommand(local_buffer, data_len);        // 新增命令解析
     }
 }
 
@@ -143,7 +145,9 @@ void Vofa_ParseReceivedData(void)
             __disable_irq();
             if (latest_buffer == ready) latest_buffer = -1;
             __enable_irq();
-            Vofa_ParseCustomProtocol(local_buffer, data_len);
+            // 并行调用两个解析函数：通道数据解析和命令解析
+            Vofa_ParseCustomProtocol(local_buffer, data_len);  // 保持原有通道解析
+            Vofa_ParseCommand(local_buffer, data_len);        // 新增命令解析
         } else {
             __enable_irq();
         }
@@ -257,4 +261,46 @@ const char *Vofa_GetChannelName(uint8_t channel_id)
         return channel_names[channel_id];
     }
     return "";  
+}
+
+// 命令解析函数 - 与Vofa_ParseCustomProtocol并行工作
+void Vofa_ParseCommand(uint8_t *data, uint16_t length)
+{
+    if (length == 0)
+        return;
+
+    // 将数据转换为字符串
+    char str_buffer[RX_BUFFER_SIZE + 1];
+    memcpy(str_buffer, data, length);
+    str_buffer[length] = '\0';
+
+    // 检查是否为纯文本命令（不包含"ch"前缀）
+    char *ptr = str_buffer;
+    
+    // 跳过空白字符
+    while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n' || *ptr == '\r') {
+        ptr++;
+    }
+    
+    // 如果数据以"ch"开头，说明是通道数据，不处理命令
+    if (strncmp(ptr, "ch", 2) == 0) {
+        return;
+    }
+    
+    // 检查是否包含可打印字符（排除控制字符）
+    int has_printable = 0;
+    for (uint16_t i = 0; i < length; i++) {
+        if (data[i] >= 0x20 && data[i] <= 0x7E) { // 可打印ASCII字符
+            has_printable = 1;
+            break;
+        }
+    }
+    
+    if (!has_printable) {
+        return; // 没有可打印字符，不处理
+    }
+    
+    // 调用命令解析系统
+    extern void Command_Parse(char* command_line);
+    Command_Parse(str_buffer);
 }

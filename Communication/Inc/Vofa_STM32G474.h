@@ -32,6 +32,9 @@ float Vofa_GetChannelData(Vofa_ChannelTypeDef channel);
 // 自定义协议解析函数
 void Vofa_ParseCustomProtocol(uint8_t *data, uint16_t length);
 
+// 命令解析函数
+void Vofa_ParseCommand(uint8_t *data, uint16_t length);
+
 uint8_t Vofa_SetChannelName(uint8_t channel_id, const char *new_name);
 
 const char *Vofa_GetChannelName(uint8_t channel_id);
