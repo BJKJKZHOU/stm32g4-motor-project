@@ -1,199 +1,409 @@
 /*============================================================================
     File Name     : command.c
-    Description   : 负责解析上位机发送的命令，根据命令执行相应的操作。
-    Author        : 
-    Date          : 2025-11-04
-=============================================================================
- */
+    Description   : Command parser implementation
+=============================================================================*/
 
 #include "command.h"
-#include "motor_params.h"  // 包含电机参数定义，包括motors_number
 
-#include <string.h>
+#include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-// 外部函数声明
+static char last_error[128];
+
 extern void Vofa_Plot_Start(void);
 extern void Vofa_Plot_Stop(void);
-extern void MotorParams_PrintAll(uint8_t motor_id);
-extern void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value);
+
+#define COMMAND_BUFFER_SIZE 128
+
+typedef enum {
+    MOTOR_ID_PARSE_OK = 0,
+    MOTOR_ID_PARSE_INVALID,
+    MOTOR_ID_PARSE_OUT_OF_RANGE
+} motor_id_parse_result_t;
+
+static void clear_last_error(void);
+static void set_error(const char* fmt, ...);
+static int string_equals_ignore_case(const char* lhs, const char* rhs);
+static int starts_with_ignore_case(const char* str, const char* prefix);
+static char* skip_leading_whitespace(char* str);
+static void rtrim_in_place(char* str);
+static void print_available_motors(void);
+static motor_id_parse_result_t parse_motor_id_token(const char* token, uint8_t* motor_id_out, long* raw_value_out);
+static void handle_plot_command(char* args);
+static void handle_motor_command(char* args);
+static void handle_set_command(char* args);
+
+void Command_Init(void)
+{
+    clear_last_error();
+}
+
+void Command_Parse(const char* command_line)
+{
+    if (command_line == NULL) {
+        set_error("Command is NULL");
+        return;
+    }
+
+    clear_last_error();
+
+    size_t length = strlen(command_line);
+    if (length == 0U) {
+        return;
+    }
+
+    if (length >= COMMAND_BUFFER_SIZE) {
+        set_error("Command too long");
+        return;
+    }
+
+    char buffer[COMMAND_BUFFER_SIZE];
+    strncpy(buffer, command_line, COMMAND_BUFFER_SIZE - 1U);
+    buffer[COMMAND_BUFFER_SIZE - 1U] = '\0';
+
+    char* cursor = skip_leading_whitespace(buffer);
+    rtrim_in_place(cursor);
+
+    if (*cursor == '\0') {
+        return;
+    }
+
+    char* args = cursor;
+    while (*args != '\0' && !isspace((unsigned char)*args)) {
+        args++;
+    }
+
+    if (*args != '\0') {
+        *args = '\0';
+        args++;
+        args = skip_leading_whitespace(args);
+    } else {
+        args = NULL;
+    }
+
+    if (string_equals_ignore_case(cursor, "plot")) {
+        handle_plot_command(args);
+    } else if (string_equals_ignore_case(cursor, "motor") || string_equals_ignore_case(cursor, "m")) {
+        handle_motor_command(args);
+    } else if (string_equals_ignore_case(cursor, "set")) {
+        handle_set_command(args);
+    } else if (starts_with_ignore_case(cursor, "motor")) {
+        char* combined_args = args;
+        if (combined_args == NULL) {
+            combined_args = cursor + 5;
+            combined_args = skip_leading_whitespace(combined_args);
+            if (combined_args != NULL && *combined_args == '\0') {
+                combined_args = NULL;
+            }
+        }
+        handle_motor_command(combined_args);
+    } else if ((tolower((unsigned char)cursor[0]) == 'm') && isdigit((unsigned char)cursor[1])) {
+        char* combined_args = cursor + 1;
+        combined_args = skip_leading_whitespace(combined_args);
+        if (combined_args != NULL && *combined_args == '\0') {
+            combined_args = NULL;
+        }
+        handle_motor_command(combined_args);
+    } else {
+        set_error("Unknown command '%s'", cursor);
+    }
+}
+
+const char* Command_GetLastError(void)
+{
+    return last_error;
+}
+
+static void clear_last_error(void)
+{
+    last_error[0] = '\0';
+}
+
+static void set_error(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(last_error, sizeof(last_error), fmt, args);
+    va_end(args);
+
+    printf("Command Error: %s\r\n", last_error);
+}
+
+static int string_equals_ignore_case(const char* lhs, const char* rhs)
+{
+    if (lhs == NULL || rhs == NULL) {
+        return 0;
+    }
+
+    while (*lhs != '\0' && *rhs != '\0') {
+        if (tolower((unsigned char)*lhs) != tolower((unsigned char)*rhs)) {
+            return 0;
+        }
+        lhs++;
+        rhs++;
+    }
+
+    return (*lhs == '\0') && (*rhs == '\0');
+}
+
+static int starts_with_ignore_case(const char* str, const char* prefix)
+{
+    if (str == NULL || prefix == NULL) {
+        return 0;
+    }
+
+    while (*prefix != '\0') {
+        if (*str == '\0' || tolower((unsigned char)*str) != tolower((unsigned char)*prefix)) {
+            return 0;
+        }
+        str++;
+        prefix++;
+    }
+
+    return 1;
+}
+
+static char* skip_leading_whitespace(char* str)
+{
+    if (str == NULL) {
+        return NULL;
+    }
+
+    while (*str != '\0' && isspace((unsigned char)*str)) {
+        str++;
+    }
+
+    return str;
+}
+
+static void rtrim_in_place(char* str)
+{
+    if (str == NULL) {
+        return;
+    }
+
+    size_t len = strlen(str);
+    while (len > 0U && isspace((unsigned char)str[len - 1U])) {
+        str[len - 1U] = '\0';
+        len--;
+    }
+}
+
+static void print_available_motors(void)
+{
+    printf("Available motors:");
+    for (uint8_t i = 0U; i < motors_number; i++) {
+        printf(" %u", i);
+    }
+    printf("\r\n");
+}
+
+static motor_id_parse_result_t parse_motor_id_token(const char* token, uint8_t* motor_id_out, long* raw_value_out)
+{
+    if (token == NULL || motor_id_out == NULL) {
+        return MOTOR_ID_PARSE_INVALID;
+    }
+
+    const char* cursor = token;
+    while (*cursor != '\0' && isspace((unsigned char)*cursor)) {
+        cursor++;
+    }
+
+    if (*cursor == '\0') {
+        return MOTOR_ID_PARSE_INVALID;
+    }
+
+    if (starts_with_ignore_case(cursor, "motor")) {
+        cursor += 5;
+    } else if ((tolower((unsigned char)*cursor) == 'm') && isdigit((unsigned char)cursor[1])) {
+        cursor += 1;
+    }
+
+    while (*cursor != '\0' && isspace((unsigned char)*cursor)) {
+        cursor++;
+    }
+
+    if (*cursor == '\0') {
+        return MOTOR_ID_PARSE_INVALID;
+    }
+
+    char* endptr = NULL;
+    long value = strtol(cursor, &endptr, 10);
+    if (cursor == endptr) {
+        return MOTOR_ID_PARSE_INVALID;
+    }
+
+    while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
+        endptr++;
+    }
+
+    if (*endptr != '\0') {
+        return MOTOR_ID_PARSE_INVALID;
+    }
+
+    if (raw_value_out != NULL) {
+        *raw_value_out = value;
+    }
+
+    if (value < 0 || value >= motors_number) {
+        return MOTOR_ID_PARSE_OUT_OF_RANGE;
+    }
+
+    *motor_id_out = (uint8_t)value;
+    return MOTOR_ID_PARSE_OK;
+}
 
 static void handle_plot_command(char* args)
 {
-    if (args != NULL && strcmp(args, "stop") == 0) {
+    char* trimmed = skip_leading_whitespace(args);
+    if (trimmed == NULL || *trimmed == '\0') {
+        Vofa_Plot_Start();
+        return;
+    }
+
+    rtrim_in_place(trimmed);
+
+    if (string_equals_ignore_case(trimmed, "stop")) {
         Vofa_Plot_Stop();
     } else {
-        Vofa_Plot_Start();
+        set_error("Invalid plot argument '%s'", trimmed);
     }
 }
 
 static void handle_motor_command(char* args)
 {
-    if (args == NULL || strlen(args) == 0) {
-        printf("Usage: motor <motor_id>\r\n");
-        printf("Available motors: 0, 1\r\n");
+    char* trimmed = skip_leading_whitespace(args);
+    if (trimmed == NULL || *trimmed == '\0') {
+        set_error("Usage: motor <motor_id>");
+        print_available_motors();
         return;
-    }
-    
-    // 解析电机ID（支持格式：motor0, motor1, 0, 1）
-    uint8_t motor_id;
-    
-    // 如果参数以"motor"开头，跳过"motor"部分
-    if (strncmp(args, "motor", 5) == 0) {
-        args += 5; // 跳过"motor"
     }
 
-    // 检查参数是否为空或无效
-    if (strlen(args) == 0) {
-        printf("Error: Missing motor ID\r\n");
-        printf("Usage: motor <motor_id>\r\n");
-        printf("Available motors: 0, 1\r\n");
+    rtrim_in_place(trimmed);
+
+    uint8_t motor_id = 0U;
+    long raw_value = -1;
+    motor_id_parse_result_t result = parse_motor_id_token(trimmed, &motor_id, &raw_value);
+    if (result == MOTOR_ID_PARSE_OK) {
+        MotorParams_PrintAll(motor_id);
         return;
     }
-    
-    // 将字符串转换为电机ID
-    char* endptr;
-    motor_id = strtoul(args, &endptr, 10);
-    
-    // 检查转换是否成功
-    if (endptr == args || *endptr != '\0') {
-        printf("Error: Invalid motor ID '%s'\r\n", args);
-        printf("Available motors: 0, 1\r\n");
-        return;
+
+    if (result == MOTOR_ID_PARSE_OUT_OF_RANGE) {
+        set_error("Motor %ld not found", raw_value);
+    } else {
+        set_error("Invalid motor ID '%s'", trimmed);
     }
-    
-    // 检查电机ID是否在有效范围内
-    if (motor_id >= motors_number) {
-        printf("Error: Motor %d not found\r\n", motor_id);
-        printf("Available motors: 0, 1\r\n");
-        return;
-    }
-    
-    // 打印指定电机的参数信息
-    MotorParams_PrintAll(motor_id);
+    print_available_motors();
 }
 
 static void handle_set_command(char* args)
 {
-    if (args == NULL || strlen(args) == 0) {
-        printf("Usage: set <motor_id> <param_name> = <value>\r\n");
-        printf("       set <param_name> = <value>\r\n");
+    char* trimmed = skip_leading_whitespace(args);
+    if (trimmed == NULL || *trimmed == '\0') {
+        set_error("Usage: set <motor_id> <param> = <value>");
         return;
     }
-    
-    // 解析参数设置命令
-    char* motor_id = NULL;
-    char* param_name = args;
-    char* value_str = NULL;
-    
-    // 首先检查参数中是否包含电机ID（在等号分割前处理）
-    char* space_pos = strchr(args, ' ');
-    if (space_pos != NULL) {
-        // 检查空格后面是否包含等号
-        char* equal_pos = strchr(space_pos + 1, '=');
-        if (equal_pos != NULL) {
-            // 分割电机ID和参数部分
-            *space_pos = '\0';
-            motor_id = args;
-            param_name = space_pos + 1;
-        }
-    }
-    
-    // 检查是否包含等号（支持有空格和无空格格式）
-    char* equal_pos = strchr(param_name, '=');
-    if (equal_pos == NULL) {
-        printf("Error: Invalid set command format - missing '='\r\n");
-        return;
-    }
-    
-    // 分割参数名和值
-    *equal_pos = '\0';
-    value_str = equal_pos + 1;
-    
-    // 去除参数名末尾的空格
-    char* param_end = param_name + strlen(param_name) - 1;
-    while (param_end > param_name && (*param_end == ' ' || *param_end == '\t')) {
-        *param_end = '\0';
-        param_end--;
-    }
-    
-    // 去除值开头的空格
-    while (*value_str == ' ' || *value_str == '\t') value_str++;
-    
-    // 转换数值
-    float value = atof(value_str);
-    
-    // 设置参数
-    int motor_index = 0; // 默认使用电机0
-    if (motor_id != NULL) {
-        if (strcmp(motor_id, "motor0") == 0) {
-            motor_index = 0;
-        } else if (strcmp(motor_id, "motor1") == 0) {
-            motor_index = 1;
-        } else {
-            printf("Error: Motor '%s' not found\r\n", motor_id);
-            return;
-        }
-    }
-    
-    // 调用参数设置函数
-    MotorParams_SetParam(motor_index, param_name, value);
- 
-}
 
-void Command_Parse(char* command_line)
-{
-    if (command_line == NULL || strlen(command_line) == 0) {
+    rtrim_in_place(trimmed);
+
+    char* equal_sign = strchr(trimmed, '=');
+    if (equal_sign == NULL) {
+        set_error("Invalid set command: missing '='");
         return;
     }
-    
-    // 去除首尾空白字符
-    char* cmd_start = command_line;
-    while (*cmd_start == ' ' || *cmd_start == '\t') cmd_start++;
-    
-    char* cmd_end = cmd_start + strlen(cmd_start) - 1;
-    while (cmd_end > cmd_start && (*cmd_end == ' ' || *cmd_end == '\t' || *cmd_end == '\r' || *cmd_end == '\n')) cmd_end--;
-    *(cmd_end + 1) = '\0';
-    
-    if (strlen(cmd_start) == 0) {
+
+    char* value_str = equal_sign + 1;
+    *equal_sign = '\0';
+
+    value_str = skip_leading_whitespace(value_str);
+    rtrim_in_place(value_str);
+    if (*value_str == '\0') {
+        set_error("Missing value for set command");
         return;
     }
-    
-    // 检查是否为motorX格式（motor1, motor0等）
-    if (strncmp(cmd_start, "motor", 5) == 0) {
-        char* motor_id_str = cmd_start + 5; // 跳过"motor"
-        
-        // 检查motor后面是否直接跟着数字
-        if (strlen(motor_id_str) > 0 && motor_id_str[0] >= '0' && motor_id_str[0] <= '9') {
-            // 直接调用handle_motor_command处理motorX格式
-            handle_motor_command(motor_id_str);
+
+    char* target = skip_leading_whitespace(trimmed);
+    rtrim_in_place(target);
+    if (*target == '\0') {
+        set_error("Missing parameter name");
+        return;
+    }
+
+    uint8_t motor_index = 0U;
+    char* param_name = target;
+
+    char* separator = target;
+    while (*separator != '\0' && !isspace((unsigned char)*separator)) {
+        separator++;
+    }
+
+    if (*separator != '\0') {
+        char original = *separator;
+        *separator = '\0';
+        char* maybe_param = skip_leading_whitespace(separator + 1);
+        if (*maybe_param == '\0') {
+            set_error("Missing parameter name");
+            return;
+        }
+
+        long raw_id = -1;
+        motor_id_parse_result_t parse_result = parse_motor_id_token(target, &motor_index, &raw_id);
+        if (parse_result == MOTOR_ID_PARSE_OK) {
+            param_name = maybe_param;
+        } else if (parse_result == MOTOR_ID_PARSE_OUT_OF_RANGE ||
+                   starts_with_ignore_case(target, "motor") ||
+                   starts_with_ignore_case(target, "m") ||
+                   isdigit((unsigned char)target[0])) {
+            if (parse_result == MOTOR_ID_PARSE_OUT_OF_RANGE) {
+                set_error("Motor %ld not found", raw_id);
+            } else {
+                set_error("Invalid motor ID '%s'", target);
+            }
+            print_available_motors();
+            return;
+        } else {
+            *separator = original;
+            param_name = target;
+        }
+    } else {
+        long raw_id = -1;
+        motor_id_parse_result_t parse_result = parse_motor_id_token(target, &motor_index, &raw_id);
+        if (parse_result == MOTOR_ID_PARSE_OK) {
+            set_error("Missing parameter name");
+            return;
+        } else if (parse_result == MOTOR_ID_PARSE_OUT_OF_RANGE) {
+            set_error("Motor %ld not found", raw_id);
+            print_available_motors();
             return;
         }
     }
-    
-    // 分割命令和参数
-    char* cmd = cmd_start;
-    char* args = NULL;
-    
-    char* space_pos = strchr(cmd_start, ' ');
-    if (space_pos != NULL) {
-        *space_pos = '\0';
-        args = space_pos + 1;
-        
-        // 去除参数前的空白
-        while (*args == ' ' || *args == '\t') args++;
+
+    param_name = skip_leading_whitespace(param_name);
+    rtrim_in_place(param_name);
+    if (*param_name == '\0') {
+        set_error("Missing parameter name");
+        return;
     }
-    
-    // 命令分发
-    if (strcmp(cmd, "plot") == 0) {
-        handle_plot_command(args);
-    } else if (strcmp(cmd, "motor") == 0) {
-        handle_motor_command(args);
-    } else if (strcmp(cmd, "set") == 0) {
-        handle_set_command(args);
-    } else {
-        printf("Error: Unknown command '%s'\r\n", cmd);
-        printf("Available commands: plot, motor, set\r\n");
+
+    char* endptr = NULL;
+    float value = strtof(value_str, &endptr);
+    if (value_str == endptr) {
+        set_error("Invalid value '%s'", value_str);
+        return;
     }
+
+    while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
+        endptr++;
+    }
+
+    if (*endptr != '\0') {
+        set_error("Invalid value '%s'", value_str);
+        return;
+    }
+
+    MotorParams_SetParam(motor_index, param_name, value);
 }

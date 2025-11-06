@@ -115,8 +115,8 @@ void MotorParams_PrintAll(uint8_t motor_id)// 输出指定电机的所有参数�
         return;
     }
     
-    printf("=== 电机 %d 参数列表 ===\n", motor_id);
-    printf("%-10s %-15s %-10s %-20s %-10s\n", 
+    printf("======== 电机 %d 参数列表 ========\n", motor_id);
+    printf("%-12s %-20s %-10s %-20s %-10s\n", 
            "HMI代码", "参数名", "值", "单位", "描述");
     printf("------------------------------------------------------------\n");
     
@@ -179,7 +179,7 @@ void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value)
             return;
         }
     }
-    
+            
     // 如果不是HMI代码格式，使用参数名称设置逻辑
     for (int i = 0; i < PARAM_COUNT; i++) {
         if (strcmp(param_descs[i].name, param_name) == 0) {
