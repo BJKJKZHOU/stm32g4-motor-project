@@ -1,4 +1,4 @@
-// TODO :确定系统中所有需要归一化(标幺)的物理量及其预期的最大值。
+// 确定系统中所有需要归一化(标幺)的物理量及其预期的最大值。
 /* ======================================================================
     ## 第一套方案 基于额定值的归一化
     ### 在ABC坐标下，
@@ -62,4 +62,58 @@
     时间基准值: T_base = 1 / w_base;            // 时间基准值 
 
     * =================================================================== */
+
+#ifndef NORMALIZATION_H
+#define NORMALIZATION_H
+
+#include "motor_params.h"
+#include "arm_math.h"
+
+#include <stdbool.h>
+#include <stdint.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+    NORMALIZE_VOLTAGE,
+    NORMALIZE_CURRENT,
+    NORMALIZE_SPEED_ELECTRICAL,
+    NORMALIZE_FLUX,
+    NORMALIZE_TORQUE,
+    NORMALIZE_POWER,
+    NORMALIZE_IMPEDANCE,
+    NORMALIZE_INDUCTANCE,
+    NORMALIZE_TIME
+} normalization_quantity_t;
+
+typedef struct {
+    float voltage_base;    // V_base: 电压基值 (V_DC/√3)
+    float current_base;    // I_base: 电流基值 (ISenseMax)
+    float omega_base;      // ω_base: 电角速度基值 (rad/s)
+    float flux_base;       // Fluxb: 磁链基值 (V_base/ω_base)
+    float torque_base;     // T_base: 转矩基值 (1.5*Pn*Flux*I_base)
+    float power_base;      // P_base: 功率基值 (1.5*I_base*V_base)
+    float impedance_base;  // Z_base: 阻抗基值 (V_base/I_base)
+    float inductance_base; // L_base: 电感基值 (Fluxb/I_base)
+    float time_base;       // T_base: 时间基准值 (1/ω_base)
+} normalization_base_values_t;
+
+void Normalization_Init(void);
+void Normalization_UpdateMotor(uint8_t motor_id);
+const normalization_base_values_t *Normalization_GetBases(uint8_t motor_id);
+
+float Normalization_ToPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float value);
+float Normalization_FromPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float pu_value);
+
+q31_t Normalization_ToQ31(uint8_t motor_id, normalization_quantity_t quantity, float value);
+float Normalization_FromQ31(uint8_t motor_id, normalization_quantity_t quantity, q31_t value);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // NORMALIZATION_H
 

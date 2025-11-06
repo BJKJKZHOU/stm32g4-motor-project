@@ -11,7 +11,6 @@ Motor_Params_t motor_params[motors_number];
 Motor_LimitParams_t motor_limit_params[motors_number];
 
 
-
 void MotorParams_Init(void)
 {
     // 初始化0号电机参数
@@ -23,7 +22,7 @@ void MotorParams_Init(void)
     motor_params[MOTOR_0].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
     motor_params[MOTOR_0].Pn = 4.0f;           // 极对数
     motor_params[MOTOR_0].Ke = 2.0f;           // 反电动势常数
-    motor_params[MOTOR_0].Flux = 2.0f;         // 转子磁链
+    motor_params[MOTOR_0].Flux = motor_params[MOTOR_0].Ke * FLUX_CONSTANT / motor_params[MOTOR_0].Pn;         // 转子磁链
     motor_params[MOTOR_0].J = 0.0f;            // 转动惯量
     motor_params[MOTOR_0].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 
@@ -44,7 +43,7 @@ void MotorParams_Init(void)
     motor_params[MOTOR_1].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
     motor_params[MOTOR_1].Pn = 4.0f;           // 极对数
     motor_params[MOTOR_1].Ke = 2.0f;           // 反电动势常数
-    motor_params[MOTOR_1].Flux = 2.0f;         // 转子磁链
+    motor_params[MOTOR_1].Flux = motor_params[MOTOR_1].Ke * FLUX_CONSTANT / motor_params[MOTOR_1].Pn;         // 转子磁链
     motor_params[MOTOR_1].J = 0.01f;           // 转动惯量
     motor_params[MOTOR_1].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 

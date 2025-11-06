@@ -31,6 +31,7 @@
 
 #include "vofa_com_threadx.h"
 #include "motor_params.h"
+#include "normalization.h"
 
 /* USER CODE END Includes */
 
@@ -104,7 +105,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   /* Initialize motor parameters */
-  MotorParams_Init();
+  MotorParams_Init();   //初始化电机参数
+  Normalization_Init(); //初始化归一化参数     
 
   /* USER CODE END 2 */
 

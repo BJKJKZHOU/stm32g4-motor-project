@@ -11,6 +11,7 @@
 
 #include "motor_params.h"
 #include "Vofa_STM32G474.h"
+#include "normalization.h"
 
 #include <stdint.h>
 #include <stdbool.h>

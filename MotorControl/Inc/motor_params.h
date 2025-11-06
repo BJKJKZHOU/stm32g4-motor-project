@@ -17,6 +17,8 @@ extern "C" {
 #define PI 3.1415926f
 #endif
 
+#define FLUX_CONSTANT (60.0f / (1.7320508075688772f * 2.0f * PI * 1000.0f)) //Flux=Ke/((SQRT(3)*2.0f*PI*1000.0*Pn)/60.0)
+
 enum Motor_Index
 {
     MOTOR_0 = 0,

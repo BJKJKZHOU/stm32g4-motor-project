@@ -406,4 +406,5 @@ static void handle_set_command(char* args)
     }
 
     MotorParams_SetParam(motor_index, param_name, value);
+    Normalization_UpdateMotor(motor_index);
 }

@@ -21,7 +21,10 @@
         "type_traits": "c",
         "motor_params.h": "c",
         "stdint.h": "c",
-        "command.h": "c"
+        "command.h": "c",
+        "main.h": "c",
+        "stm32g4xx_hal_conf.h": "c",
+        "gpio.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
