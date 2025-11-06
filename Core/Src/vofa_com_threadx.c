@@ -29,16 +29,6 @@ static uint32_t time_counter = 0;
 
 void Vofa_UpdateTestData(void);
 
-void Vofa_Plot_Start(void)
-{
-    vofa_justfloat_enabled = 1;
-}
-
-void Vofa_Plot_Stop(void)
-{
-    vofa_justfloat_enabled = 0;
-}
-
 UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
@@ -97,7 +87,7 @@ void vofa_com_thread_entry(ULONG thread_input)
  
     /* 更新测试数据 */
     Vofa_UpdateTestData();
-    
+
     if (vofa_justfloat_enabled){
     /* 发送数据到VOFA+ */
       Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
@@ -160,4 +150,15 @@ void Vofa_UpdateTestData(void)
   
   // /* 15. 接收数据平均值 */
   // test_data[14] = (ch10_data + ch11_data + ch12_data) / 3.0f;
+}
+
+
+void Vofa_Plot_Start(void)
+{
+    vofa_justfloat_enabled = 1;
+}
+
+void Vofa_Plot_Stop(void)
+{
+    vofa_justfloat_enabled = 0;
 }

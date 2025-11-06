@@ -15,15 +15,17 @@ Motor_LimitParams_t motor_limit_params[motors_number];
 void MotorParams_Init(void)
 {
     // 初始化0号电机参数
-    motor_params[MOTOR_0].Pn = 4.0f;
-    motor_params[MOTOR_0].RPM_rated = 3000.0f;    //电机参数，不代表最终转数限制
-    motor_params[MOTOR_0].I_rated = 5.0f;
-    motor_params[MOTOR_0].Rs = 0.5f;
-    motor_params[MOTOR_0].Ld = 0.001f; //对于表贴式永磁同步电机，Ld=Lq
-    motor_params[MOTOR_0].Lq = 0.001f;
-    motor_params[MOTOR_0].J = 0.01f;
-    motor_params[MOTOR_0].B = 0.0f;  //可以忽略不记，就是0
-    motor_params[MOTOR_0].lamaf =  2.0f;   // 转子磁链
+    motor_params[MOTOR_0].V_DC = 14.0f;        // 直流母线电压
+    motor_params[MOTOR_0].I_rated = 4.0f;      // 额定电流
+    motor_params[MOTOR_0].Rs = 0.5f;           // 电阻
+    motor_params[MOTOR_0].Lq = 0.001f;         // q轴电感
+    motor_params[MOTOR_0].Ld = 0.001f;          // d轴电感（对于表贴式永磁同步电机，Ld=Lq）
+    motor_params[MOTOR_0].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
+    motor_params[MOTOR_0].Pn = 4.0f;           // 极对数
+    motor_params[MOTOR_0].Ke = 2.0f;           // 反电动势常数
+    motor_params[MOTOR_0].Flux = 2.0f;         // 转子磁链
+    motor_params[MOTOR_0].J = 0.0f;            // 转动惯量
+    motor_params[MOTOR_0].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 
     // 初始化0号电机控制系统限值
     motor_limit_params[MOTOR_0].I_limit_user = 8.0f;//用户希望的最大电流
@@ -34,15 +36,17 @@ void MotorParams_Init(void)
     motor_limit_params[MOTOR_0].speed_limit_actual = fmin(motor_limit_params[MOTOR_0].speed_limit_user, motor_limit_params[MOTOR_0].speed_limit_max);//最终实际最大转速
     
     // 初始化1号电机参数
-    motor_params[MOTOR_1].Pn = 4.0f;
-    motor_params[MOTOR_1].RPM_rated = 3000.0f;    //电机参数，不代表最终转数限制
-    motor_params[MOTOR_1].I_rated = 5.0f;
-    motor_params[MOTOR_1].Rs = 0.5f;
-    motor_params[MOTOR_1].Ld = 0.001f; //对于表贴式永磁同步电机，Ld=Lq
-    motor_params[MOTOR_1].Lq = 0.001f;
-    motor_params[MOTOR_1].J = 0.01f;
-    motor_params[MOTOR_1].B = 0.0f;  //可以忽略不记，就是0
-    motor_params[MOTOR_1].lamaf =  2.0f;   // 转子磁链
+    motor_params[MOTOR_1].V_DC = 48.0f;        // 直流母线电压
+    motor_params[MOTOR_1].I_rated = 5.0f;      // 额定电流
+    motor_params[MOTOR_1].Rs = 0.5f;           // 电阻
+    motor_params[MOTOR_1].Lq = 0.001f;         // q轴电感
+    motor_params[MOTOR_1].Ld = 0.001f;          // d轴电感（对于表贴式永磁同步电机，Ld=Lq）
+    motor_params[MOTOR_1].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
+    motor_params[MOTOR_1].Pn = 4.0f;           // 极对数
+    motor_params[MOTOR_1].Ke = 2.0f;           // 反电动势常数
+    motor_params[MOTOR_1].Flux = 2.0f;         // 转子磁链
+    motor_params[MOTOR_1].J = 0.01f;           // 转动惯量
+    motor_params[MOTOR_1].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 
     // 初始化1号电机控制系统限值
     motor_limit_params[MOTOR_1].I_limit_user = 8.0f;//用户希望的最大电流
@@ -57,69 +61,52 @@ void MotorParams_Init(void)
 // 参数描述数组
 const ParamDesc_t param_descs[PARAM_COUNT] = { 
     // hmi_code, name, unit, desc
-    {"P1001", "Rs", "ohm", "定子绕组电阻"},        // 索引0
-    {"P1002", "Lq", "mH", "q轴电感"},              // 索引1
-    {"P1003", "Ld", "mH", "d轴电感"},              // 索引2
-    {"P1004", "Flux", "Vpk_LL/krpm", "反电动势"},  // 索引3
-    {"P1005", "Pn", "-", "极对数"},             // 索引4
-    {"P1006", "RPM_rated", "rpm", "额定转速"},          // 索引5
-    {"P1007", "I_rated", "A", "额定电流"},         // 索引6
-    {"P1008", "J", "kg·m²", "转动惯量"},          // 索引7
-    {"P1009", "B", "N·m·s/rad", "摩擦系数"},      // 索引8
+    {"P1001", "V_DC", "V", "直流母线电压"},          // 索引0
+    {"P1002", "I_rated", "A", "额定电流"},           // 索引1  
+    {"P1003", "Rs", "ohm", "定子绕组相电阻"},         // 索引2
+    {"P1004", "Lq", "mH", "q轴电感"},                // 索引3
+    {"P1005", "Ld", "mH", "d轴电感"},                // 索引4
+    {"P1006", "RPM_rated", "rpm", "额定转速"},       // 索引5
+    {"P1007", "Pn", "-", "极对数"},                   // 索引6
+    {"P1008", "Ke", "Vpk_LL/krpm", "线线峰值测的反电动势常数"},   // 索引7
+    {"P1009", "Flux", "Wb", "转子磁链"},              // 索引8
+    {"P1010", "J", "kg·m²*10^-3", "转动惯量"},       // 索引9
+    {"P1011", "B", "N·m·s/rad", "摩擦系数"}          // 索引10
 };
+
 
 const ParamMap_t param_maps[motors_number][PARAM_COUNT] = {
     // 电机0的参数映射
     {
-        {&motor_params[MOTOR_0].Rs, 0},      // 电阻 - 索引0
-        {&motor_params[MOTOR_0].Lq, 1},      // q轴电感 - 索引1
-        {&motor_params[MOTOR_0].Ld, 2},      // d轴电感 - 索引2
-        {&motor_params[MOTOR_0].lamaf, 3},   // 反电动势 - 索引3
-        {&motor_params[MOTOR_0].Pn, 4},      // 极对数 - 索引4
-        {&motor_params[MOTOR_0].RPM_rated, 5}, // 额定转速 - 索引5
-        {&motor_params[MOTOR_0].I_rated, 6},  // 额定电流 - 索引6
-        {&motor_params[MOTOR_0].J, 7},       // 转动惯量 - 索引7
-        {&motor_params[MOTOR_0].B, 8}        // 摩擦系数 - 索引8
+        {&motor_params[MOTOR_0].V_DC, 0},      // P1001 - 直流母线电压 - 索引0
+        {&motor_params[MOTOR_0].I_rated, 1},   // P1002 - 额定电流 - 索引1
+        {&motor_params[MOTOR_0].Rs, 2},        // P1003 - 电阻 - 索引2
+        {&motor_params[MOTOR_0].Lq, 3},        // P1004 - q轴电感 - 索引3
+        {&motor_params[MOTOR_0].Ld, 4},        // P1005 - d轴电感 - 索引4
+        {&motor_params[MOTOR_0].RPM_rated, 5}, // P1006 - 额定转速 - 索引5
+        {&motor_params[MOTOR_0].Pn, 6},        // P1007 - 极对数 - 索引6
+        {&motor_params[MOTOR_0].Ke, 7},        // P1008 - 反电动势常数 - 索引7
+        {&motor_params[MOTOR_0].Flux, 8},      // P1009 - 转子磁链 - 索引8
+        {&motor_params[MOTOR_0].J, 9},         // P1010 - 转动惯量 - 索引9
+        {&motor_params[MOTOR_0].B, 10}         // P1011 - 摩擦系数 - 索引10
     },
-    
+
     // 电机1的参数映射
     {
-        {&motor_params[MOTOR_1].Rs, 0},      // 电阻 - 索引0
-        {&motor_params[MOTOR_1].Lq, 1},      // q轴电感 - 索引1
-        {&motor_params[MOTOR_1].Ld, 2},      // d轴电感 - 索引2
-        {&motor_params[MOTOR_1].lamaf, 3},   // 反电动势 - 索引3
-        {&motor_params[MOTOR_1].Pn, 4},      // 极对数 - 索引4
-        {&motor_params[MOTOR_1].RPM_rated, 5}, // 额定转速 - 索引5
-        {&motor_params[MOTOR_1].I_rated, 6},  // 额定电流 - 索引6
-        {&motor_params[MOTOR_1].J, 7},       // 转动惯量 - 索引7
-        {&motor_params[MOTOR_1].B, 8}        // 摩擦系数 - 索引8
+        {&motor_params[MOTOR_1].V_DC, 0},      // P1001 - 直流母线电压 - 索引0
+        {&motor_params[MOTOR_1].I_rated, 1},   // P1002 - 额定电流 - 索引1
+        {&motor_params[MOTOR_1].Rs, 2},        // P1003 - 电阻 - 索引2
+        {&motor_params[MOTOR_1].Lq, 3},        // P1004 - q轴电感 - 索引3
+        {&motor_params[MOTOR_1].Ld, 4},        // P1005 - d轴电感 - 索引4
+        {&motor_params[MOTOR_1].RPM_rated, 5}, // P1006 - 额定转速 - 索引5
+        {&motor_params[MOTOR_1].Pn, 6},        // P1007 - 极对数 - 索引6
+        {&motor_params[MOTOR_1].Ke, 7},        // P1008 - 反电动势常数 - 索引7
+        {&motor_params[MOTOR_1].Flux, 8},      // P1009 - 转子磁链 - 索引8
+        {&motor_params[MOTOR_1].J, 9},         // P1010 - 转动惯量 - 索引9
+        {&motor_params[MOTOR_1].B, 10}         // P1011 - 摩擦系数 - 索引10
     }
 };
 
-// 自定义浮点数格式化函数（避免依赖printf的浮点数支持）
-void format_float_value(char* buffer, int buffer_size, float value)
-{
-    if (value == 0.0f) {
-        snprintf(buffer, buffer_size, "0.00000");
-        return;
-    }
-    
-    // 处理整数部分
-    int integer_part = (int)value;
-    
-    // 处理小数部分（保留5位小数）
-    float fractional = value - integer_part;
-    if (fractional < 0) fractional = -fractional; // 处理负数
-    
-    int fractional_part = (int)(fractional * 100000 + 0.5f); // 四舍五入到5位小数
-    
-    // 处理负数
-    if (value < 0 && integer_part == 0) {
-        snprintf(buffer, buffer_size, "-%d.%05d", integer_part, fractional_part);
-    } else {
-        snprintf(buffer, buffer_size, "%d.%05d", integer_part, fractional_part);
-    }
-}
 
 void MotorParams_PrintAll(uint8_t motor_id)// 输出指定电机的所有参数和描述
 {
@@ -161,8 +148,6 @@ void MotorParams_PrintAll(uint8_t motor_id)// 输出指定电机的所有参数�
 
 } 
 
-
-
 // 内部辅助函数：根据HMI代码获取参数ID
 static int8_t GetParamIdByHMICode(const char* hmi_code)
 {
@@ -180,36 +165,18 @@ void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value)
         return;
     }
     
-    // 检查是否是"Pxxxx=value"格式
-    char* equal_sign = strchr(param_name, '=');
-    if (equal_sign != NULL) {
-        // 解析HMI代码格式："Pxxxx=value"
-        char hmi_code[10];
-        float parsed_value;
-        
-        // 提取HMI代码部分（等号前的部分）
-        int code_length = equal_sign - param_name;
-        if (code_length > 0 && code_length < (int)sizeof(hmi_code)) {
-            strncpy(hmi_code, param_name, code_length);
-            hmi_code[code_length] = '\0';
-            
-            // 解析数值部分
-            parsed_value = atof(equal_sign + 1);
-            
-            // 使用HMI代码查找参数ID
-            int8_t param_id = GetParamIdByHMICode(hmi_code);
-            if (param_id >= 0 && param_id < PARAM_COUNT) {
-                // 直接使用param_maps数组获取参数指针并设置值
-                float* param_ptr = param_maps[motor_id][param_id].value_ptr;
-                if (param_ptr) {
-                    *param_ptr = parsed_value;
-                    // 输出确认信息
-                    char value_str[16];
-                    format_float_value(value_str, sizeof(value_str), parsed_value);
-                    printf("OK new %s = %s\n", param_descs[param_id].name, value_str);
-                    return;
-                }
-            }
+    // 首先尝试将param_name作为HMI代码（Pxxxx格式）处理
+    int8_t param_id = GetParamIdByHMICode(param_name);
+    if (param_id >= 0 && param_id < PARAM_COUNT) {
+        // 使用HMI代码查找参数ID成功，直接设置值
+        float* param_ptr = param_maps[motor_id][param_id].value_ptr;
+        if (param_ptr) {
+            *param_ptr = value;
+            // 输出确认信息
+            char value_str[16];
+            format_float_value(value_str, sizeof(value_str), value);
+            printf("OK new %s = %s\n", param_descs[param_id].name, value_str);
+            return;
         }
     }
     
@@ -229,15 +196,6 @@ void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value)
         }
     }
     
-    // 特殊处理：Flux参数名称映射到lamaf
-    if (strcmp(param_name, "Flux") == 0) {
-        float* param_ptr = param_maps[motor_id][3].value_ptr; // lamaf对应索引3
-        if (param_ptr) {
-            *param_ptr = value;
-            // 输出确认信息
-            char value_str[16];
-            format_float_value(value_str, sizeof(value_str), value);
-            printf("OK new %s = %s\n", param_name, value_str);
-        }
-    }
+    // 如果两种方式都找不到参数，输出错误信息
+    printf("错误：未找到参数 '%s'\n", param_name);
 }

@@ -19,7 +19,9 @@
         "cmath": "c",
         "compare": "c",
         "type_traits": "c",
-        "motor_params.h": "c"
+        "motor_params.h": "c",
+        "stdint.h": "c",
+        "command.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

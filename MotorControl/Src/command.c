@@ -139,9 +139,7 @@ static void handle_set_command(char* args)
     
     // 调用参数设置函数
     MotorParams_SetParam(motor_index, param_name, value);
-    
-    // MotorParams_SetParam函数内部已经包含确认输出
-    // 无需在此重复输出
+ 
 }
 
 void Command_Parse(char* command_line)
