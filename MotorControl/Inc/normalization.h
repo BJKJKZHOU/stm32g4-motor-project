@@ -103,13 +103,20 @@ typedef struct {
 
 void Normalization_Init(void);
 void Normalization_UpdateMotor(uint8_t motor_id);
+
+// 获取电机归一化基值
 const normalization_base_values_t *Normalization_GetBases(uint8_t motor_id);
 
+// 将实际值转换为标幺值 [-1, 1]
 float Normalization_ToPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float value);
+// 将标幺值转换为实际值
 float Normalization_FromPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float pu_value);
 
+// 将实际值转换为Q31格式 
 q31_t Normalization_ToQ31(uint8_t motor_id, normalization_quantity_t quantity, float value);
+// 将Q31格式转换为实际值
 float Normalization_FromQ31(uint8_t motor_id, normalization_quantity_t quantity, q31_t value);
+
 
 #ifdef __cplusplus
 }
