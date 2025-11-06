@@ -17,7 +17,7 @@
     Ib : 电流基值
     P  : 电机极数
     Pn : P/2 极对数
-    lamaf:转子磁链
+    Flux:转子磁链
     Rs : 定子每相电阻
     Lq : q轴 定子每相电感
     Ld : d轴 定子每相电感
@@ -32,28 +32,34 @@
     ### 基值
     Vb = Pb / (3*Ib)    // 电压基值
     Zb = Vb / Ib        // 阻抗基值
-    lamb = lamaf        // 磁链基值
-    Lb = lamb / Ib      // 电感基值
-    wb = Vb / lamb      // 电角速度基值
+    Fluxb = Flux        // 磁链基值 flux 
+    Lb = Fluxb / Ib      // 电感基值
+    wb = Vb / Fluxb      // 电角速度基值
 
     Rsn = Rs / Zb; // 归一化后的定子每相电阻
     Lqn = Lq / Lb; // 归一化后的q轴定子每相电感
     Ldn = Ld / Lb; // 归一化后的d轴定子每相电感
     Bn  = B*wb^2/(Pb*(Pn)^2); // 归一化后的粘滞摩擦系数
     H  = J*wb^2/(2*Pb*(Pn)^2); // 归一化后的转动惯量(惯性常数)
-    lamafn = lamaf/lamb; // 归一化后的转子磁链
+    Fluxn = Flux/Fluxb; // 归一化后的转子磁链
+
+
 
     ## 第二套方案 直接使用硬件参数为归一化基值
 
     ### 基值
 
-    电压基值: V_base = V_dc/sqrt(3);            // 在SVPWM情况下 逆变器提供的最大相电压 = 直流母线电压/√3
+    电压基值: V_base = V_DC/sqrt(3);            // 在SVPWM情况下 逆变器提供的最大相电压 = 直流母线电压/√3
     电流基值: I_base = ISenseMax;               // 逆变器的电流感测电路可测量的最大电流
-    转数基值: w_base = (2*pi*RPM/60)*Pn;        // 电机转速(转/分)转换为电角速度(rad/s)
-    转矩基值: T_base = (3/2)*Pn*lamaf*I_base;   // 此转矩是根据基电流通过数学计算推断,lamaf为PMSM的永磁磁链,Pn极对数
+    转数基值: w_base = (2*pi*RPM/60)*Pn;        // 电机转速(转/分)转换为电角速度(rad/s)。
+    //另一方法：w_base = 2*pi*fb，fb为电机供电额定频率(不一定是50Hz),电机在额定同步转速时值是相同的，fb = (RPM/60)*Pn。
+
+    磁链基值：Fluxb = V_base / w_base           // Fluxb = Flux 
+    转矩基值: T_base = (3/2)*Pn*Flux*I_base;    // 此转矩是根据基电流通过数学计算推断,Flux为PMSM的永磁磁链,Pn极对数
     功率基值: P_base = (3/2)*I_base*V_base;     // 由基电压和基电流推断的功率
     阻抗基值: Z_base = V_base / I_base;         // 由基电压和基电流推断的阻抗，同方案一
-    电感基值: L_base = lamb / I_base;           // 电感基值，同方案一
+    电感基值: L_base = Fluxb / I_base;          // 电感基值，同方案一
+    时间基准值: T_base = 1 / w_base;            // 时间基准值 
 
     * =================================================================== */
 
