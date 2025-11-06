@@ -2,19 +2,7 @@
     负责解析上位机发送的命令，根据命令执行相应的操作。
     上位机发送的是字符串命令，通过串口接收。
     调用vofa的数据接收功能，解析协议自定义。
-=============================================================================
- */
-#ifndef COMMAND_H
-#define COMMAND_H
-
-#include "Vofa_STM32G474.h"
-#include "motor_params.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
+ =============================================================================
  * @brief 命令解析模块 - 支持的命令列表
  * 命令不区分大小写
  *  * 示例：
@@ -40,8 +28,21 @@ extern "C" {
  *    - set <param_name> = <value>            设置默认电机0的参数值
  *    - 支持无空格格式：set motor1 Rs=0.8
  *    - 支持参数：Rs, Ls, Flux, Flux(别名), P1001(HMI代码)
- * 
+ =============================================================================
  */
+
+
+
+#ifndef COMMAND_H
+#define COMMAND_H
+
+#include "Vofa_STM32G474.h"
+#include "motor_params.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /**
  * @brief 解析并执行命令
