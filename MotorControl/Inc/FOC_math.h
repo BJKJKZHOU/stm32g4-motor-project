@@ -1,0 +1,145 @@
+/*============================================================================
+    File Name     : FOC_math.h
+    Description   : FOC数学计算模块 - 包含FOC相关的数学计算函数
+    Author        : ZHOUHENG
+    Date          : 2025-11-04
+    ----------------------------------------------------------------------       
+    ## 部分说明
+    中心对齐模式说明：
+        计数器从0递增到ARR，然后递减到0
+        完整周期 = 2 × ARR 个时钟周期  
+        占空比 = CCR / ARR
+
+    ARR_PERIOD为宏定义，为定时器的自动重装载值，即ARR
+    
+    标幺化方案
+        PID输出 → U_d, U_q（电压值）
+        标幺化处理 → U_d_pu, U_q_pu = f(U_d, U_q) ∈ [-1,1] 
+        逆Park变换 → U_alpha_pu, U_beta_pu（自动限制）
+        逆克拉克变换 → Ua_pu, Ub_pu, Uc_pu（标幺值）
+        零序电压注入 → U_zero_pu = -0.5*(max+min)（标幺值）
+        占空比计算 → Tcm_pu = U_injected_pu + 0.5（标幺值，范围[0,1]）
+        最终恢复 → Tcm_actual = Tcm_pu * ARR_PERIOD（实际PWM计数值）
+
+    ## 模块
+
+    Inverse_Park_Transform 逆帕克变换
+        Input ：PID模块 Output的电压设定值 U_d, U_q
+                Sine-Cosine模块 Output的正弦余弦值 Sin(θe)、Cos(θe)
+
+         Output : U_alpha，U_beta, 两相旋转坐标系(α-β)下设定电压信号
+
+    SVPWM 空间矢量脉宽调制
+        Input : Inverse Park Transform 的 Output，两相旋转坐标系(α-β)下的U_alpha、U_beta和
+                直流母线电压 Vdc
+        Output : Tcm1, Tcm2, Tcm3，定时器参数
+
+        U_Limiter_module 限幅模块 放在SVPWM内部 使用标幺化参数时不使用此模块
+            Input : U_alpha, U_beta 两相旋转坐标系(α-β)下设定电压信号
+                    直流母线电压 Vdc
+            Output : U_alpha_limited, U_beta_limited, 限幅后的两相旋转坐标系(α-β)下限幅电压信号
+            方案 ：
+                计算电压矢量幅值：U_mag = sqrt(U_alpha² + U_beta²)
+                计算线性区上限：max_voltage = Vdc * SQRT3_OVER_TWO
+                判断是否需要限幅：
+                    if U_mag > max_voltage:
+                        scale = max_voltage / U_mag
+                        U_alpha_limited = U_alpha * scale
+                        U_beta_limited = U_beta * scale
+
+        Inverse_Clarke_Transform 逆克拉克变换  此模块放在 SVPWM 内部
+            Input : U_alpha，U_beta，
+            Output : U_a, U_b, U_c, 三相 (abc) 中的参考电压信号
+
+            SVPWM方案：零序电压注入  此模块放在 SVPWM 内部
+
+                U_zero  = -0.5*(max(Ua, Ub, Uc) + min(Ua, Ub, Uc))
+
+                Ua_injected = Ua + U_zero 
+                Ub_injected = Ub + U_zero 
+                Uc_injected = Uc + U_zero 
+
+                Tcm1_ = (Ua_injected/V_DC + 0.5)  //占空比，使用时需乘以ARR（ARR_PERIOD）
+                Tcm2_ = (Ub_injected/V_DC + 0.5)  //占空比，使用时需乘以ARR（ARR_PERIOD）
+                Tcm3_ = (Uc_injected/V_DC + 0.5)  //占空比，使用时需乘以ARR（ARR_PERIOD）
+
+                Tcm1 = Tcm1_ * ARR_PERIOD  //占空比
+                Tcm2 = Tcm2_ * ARR_PERIOD  //占空比
+                Tcm3 = Tcm3_ * ARR_PERIOD  //占空比
+
+            SVPWM标幺化方案：
+
+                float U_zero_pu = -0.5f * (fmaxf(fmaxf(Ua_pu, Ub_pu), Uc_pu)
+                         + fminf(fminf(Ua_pu, Ub_pu), Uc_pu));
+                float Ua_injected_pu = Ua_pu + U_zero_pu;
+                float Ub_injected_pu = Ub_pu + U_zero_pu;
+                float Uc_injected_pu = Uc_pu + U_zero_pu;
+
+                float Tcm1_pu = arm_sat_f32(Ua_injected_pu + 0.5f, 0.0f, 1.0f);
+                float Tcm2_pu = arm_sat_f32(Ub_injected_pu + 0.5f, 0.0f, 1.0f);
+                float Tcm3_pu = arm_sat_f32(Uc_injected_pu + 0.5f, 0.0f, 1.0f);
+
+                float Tcm1 = Tcm1_pu * ARR_PERIOD;  //占空比 
+                float Tcm2 = Tcm2_pu * ARR_PERIOD;  //占空比
+                float Tcm3 = Tcm3_pu * ARR_PERIOD;  //占空比
+
+
+
+    Clarke_Transform 克拉克变换
+        Input : 三相 (abc) 中的两个电流信号，自动计算第三个信号
+                ia + ib + ic = 0 => ic =0 - ia - ib
+                基尔霍夫电流定律，电机三相电流和为 0.
+        Output : I_alpha、I_beta，两相旋转坐标系(α-β)下电流信号
+
+    Park_Transform 帕克变换
+        Input : Clarke Transform 的 Output，两相旋转坐标系(α-β)下电流信号 I_alpha、I_beta
+                Sine-Cosine模块 Output的正弦余弦值 Sin(θe)、Cos(θe)
+
+        Output : id_feedback, iq_feedback，两相旋转坐标系(α-β)下电流信号
+                 反馈的dq电流信号,与电流设定值做差后得到dq电流误差
+
+    Sine_Cosine 角度转换为正弦余弦 注意输入信号单位
+        Input : 角度信号 θe，单位为弧度 (rad)
+                需要判断是否需要进行机械角和电角度的转换
+        Output : Sine waveform output with a frequency that is identical to 
+                 the position or phase signal () frequency.θe
+                 Cosine waveform output with a frequency that is identical to 
+                 the position or phase signal () frequency.θe
+
+    
+
+*=============================================================================
+*/
+
+
+#ifndef FOC_MATH_H
+#define FOC_MATH_H
+
+#include "main.h"
+#include "arm_math.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+void Inverse_Park_Transform(float U_d, float U_q, float sin_theta, float cos_theta,
+                           float *U_alpha_pu, float *U_beta_pu);
+
+void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
+
+void Clarke_Transform(float ia, float ib, float *I_alpha, float *I_beta);
+
+void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
+
+void Park_Transform(float I_alpha, float I_beta, float sin_theta, float cos_theta, float *I_d, float *I_q);
+
+
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* FOC_MATH_H */

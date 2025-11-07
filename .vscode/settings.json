@@ -24,7 +24,8 @@
         "command.h": "c",
         "main.h": "c",
         "stm32g4xx_hal_conf.h": "c",
-        "gpio.h": "c"
+        "gpio.h": "c",
+        "cordic.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
