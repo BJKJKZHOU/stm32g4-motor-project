@@ -86,7 +86,9 @@ typedef enum {
     NORMALIZE_POWER,
     NORMALIZE_IMPEDANCE,
     NORMALIZE_INDUCTANCE,
-    NORMALIZE_TIME
+    NORMALIZE_TIME,
+    NORMALIZE_FRICTION,
+    NORMALIZE_INERTIA
 } normalization_quantity_t;
 
 typedef struct {
@@ -99,6 +101,8 @@ typedef struct {
     float impedance_base;  // Z_base: 阻抗基值 (V_base/I_base)
     float inductance_base; // L_base: 电感基值 (Fluxb/I_base)
     float time_base;       // T_base: 时间基准值 (1/ω_base)
+    float friction_base;   // B_base: 摩擦系数基值 (P_base * Pn² / ω_base²)
+    float inertia_base;    // J_base: 转动惯量基值 (2 * P_base * Pn² / ω_base²)
 } normalization_base_values_t;
 
 void Normalization_Init(void);
@@ -112,11 +116,16 @@ float Normalization_ToPerUnit(uint8_t motor_id, normalization_quantity_t quantit
 // 将标幺值转换为实际值
 float Normalization_FromPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float pu_value);
 
-// 将实际值转换为Q31格式 
+// 将实际值转换为Q31格式 ，范围[-1, 1]，使用电机归一化基值
 q31_t Normalization_ToQ31(uint8_t motor_id, normalization_quantity_t quantity, float value);
 // 将Q31格式转换为实际值
 float Normalization_FromQ31(uint8_t motor_id, normalization_quantity_t quantity, q31_t value);
 
+// 通用归一化函数 - 直接使用基值
+float Normalization_ToPerUnitWithBase(float value, float base);// 将实际值转换为标幺值 [-1, 1]
+q31_t Normalization_ToQ31WithBase(float value, float base);// 将实际值转换为Q31格式 ，范围[-1, 1]
+float Normalization_FromPerUnitWithBase(float pu_value, float base);// 将标幺值转换为实际值
+float Normalization_FromQ31WithBase(q31_t value, float base);// 将Q31格式转换为实际值
 
 #ifdef __cplusplus
 }

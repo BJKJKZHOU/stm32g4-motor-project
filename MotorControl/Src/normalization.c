@@ -52,6 +52,8 @@ static bool compute_bases(uint8_t motor_id, normalization_base_values_t *out)
     out->impedance_base  = voltage_base / current_base;
     out->inductance_base = out->flux_base / current_base;
     out->time_base       = 1.0f / omega_base;
+    out->friction_base   = out->power_base * (params->Pn * params->Pn) / (out->omega_base * out->omega_base);
+    out->inertia_base    = 2.0f * out->power_base * (params->Pn * params->Pn) / (out->omega_base * out->omega_base);
     return true;
 }
 
@@ -67,6 +69,8 @@ static void compute_inverses(const normalization_base_values_t *base,
     inv->impedance_base  = base->impedance_base  ? 1.0f / base->impedance_base  : 0.0f;
     inv->inductance_base = base->inductance_base ? 1.0f / base->inductance_base : 0.0f;
     inv->time_base       = base->time_base       ? 1.0f / base->time_base       : 0.0f;
+    inv->friction_base   = base->friction_base   ? 1.0f / base->friction_base   : 0.0f;
+    inv->inertia_base    = base->inertia_base    ? 1.0f / base->inertia_base    : 0.0f;
 }
 
 static bool get_base_pair(uint8_t motor_id,
@@ -119,6 +123,14 @@ static bool get_base_pair(uint8_t motor_id,
     case NORMALIZE_TIME:
         *base = ctx->base.time_base;
         *inv  = ctx->inv.time_base;
+        return true;
+    case NORMALIZE_FRICTION:
+        *base = ctx->base.friction_base;
+        *inv  = ctx->inv.friction_base;
+        return true;
+    case NORMALIZE_INERTIA:
+        *base = ctx->base.inertia_base;
+        *inv  = ctx->inv.inertia_base;
         return true;
     default:
         return false;
@@ -201,4 +213,39 @@ float Normalization_FromQ31(uint8_t motor_id,
     float pu;
     arm_q31_to_float(&value, &pu, 1);
     return Normalization_FromPerUnit(motor_id, quantity, pu);
+}
+
+ 
+float Normalization_ToPerUnitWithBase(float value, float base)
+{
+    if (base == 0.0f) {
+        return 0.0f;
+    }
+    
+    float pu = value / base;
+    if (pu > NORMALIZATION_CLAMP_MAX) pu = NORMALIZATION_CLAMP_MAX;
+    if (pu < NORMALIZATION_CLAMP_MIN) pu = NORMALIZATION_CLAMP_MIN;
+    return pu;
+}
+
+q31_t Normalization_ToQ31WithBase(float value, float base)
+{
+    float pu = Normalization_ToPerUnitWithBase(value, base);
+    q31_t qvalue;
+    arm_float_to_q31(&pu, &qvalue, 1);
+    return qvalue;
+}
+
+float Normalization_FromPerUnitWithBase(float pu_value, float base)
+{
+    if (pu_value > NORMALIZATION_CLAMP_MAX) pu_value = NORMALIZATION_CLAMP_MAX;
+    if (pu_value < NORMALIZATION_CLAMP_MIN) pu_value = NORMALIZATION_CLAMP_MIN;
+    return pu_value * base;
+}
+
+float Normalization_FromQ31WithBase(q31_t value, float base)
+{
+    float pu;
+    arm_q31_to_float(&value, &pu, 1);
+    return Normalization_FromPerUnitWithBase(pu, base);
 }

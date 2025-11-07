@@ -19,9 +19,7 @@ extern "C" {
 
 #define FLUX_CONSTANT (60.0f / (1.7320508075688772f * 2.0f * PI * 1000.0f)) //Flux=Ke/((SQRT(3)*2.0f*PI*1000.0*Pn)/60.0)
 
-// 声明全局电机参数数组 
-extern Motor_Params_t motor_params[motors_number];  
-extern Motor_LimitParams_t motor_limit_params[motors_number];
+
 
 enum Motor_Index
 {
@@ -71,7 +69,9 @@ typedef struct {
 } ParamDesc_t;
 
 
-
+// 声明全局电机参数数组 
+extern Motor_Params_t motor_params[motors_number];  
+extern Motor_LimitParams_t motor_limit_params[motors_number];
 
 // 函数声明
 void MotorParams_Init(void);
