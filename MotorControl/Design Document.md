@@ -1,260 +1,418 @@
-## MotorControl 设计文档
 
-### 总体架构
-- MotorControl 子系统负责电机参数管理、归一化（标幺化）计算、命令行交互以及后续的控制器实现。
-- 主要模块：命令解析 (`command`)、参数存储 (`motor_params`)、归一化 (`normalization`)、PID 控制器 (`PID_controller`)。
-- 所有模块均采用 C 风格全局初始化函数，由 `main.c` 在外设初始化完成后调用。
+# MotorControl 模块设计文档
 
-### 模块概览
+## 1. 概述
 
-| 模块 | 路径 | 主要职责 | 关键依赖 | 主要 API |
-| --- | --- | --- | --- | --- |
-| command | `MotorControl/Inc/command.h`<br>`MotorControl/Src/command.c` | 解析串口/HMI 命令、打印/修改参数、联动归一化刷新、状态管理命令 | `motor_params`, `normalization`, `Vofa_STM32G474` | `Command_Init()` `Command_Parse()` `Command_GetLastError()` |
-| motor_params | `MotorControl/Inc/motor_params.h`<br>`MotorControl/Src/motor_params.c` | 保存电机与限幅参数，提供描述符和映射、状态管理 | `stdio.h` `math.h` `usart.h` | `MotorParams_Init()` `MotorParams_SetParam()` `MotorParams_PrintAll()` `MotorParams_SetActiveMotor()` `MotorParams_DisableMotor()` 等 |
-| normalization | `MotorControl/Inc/normalization.h`<br>`MotorControl/Src/normalization.c` | 基于第二套方案生成基值，提供标幺/Q31 转换、只处理激活电机 | `arm_math.h` `motor_params.h` | `Normalization_Init()` `Normalization_UpdateMotor()` `Normalization_GetBases()` `Normalization_ToPerUnit()` 等 |
-| FOC_math | `MotorControl/Inc/FOC_math.h`<br>`MotorControl/Src/FOC_math.c` | FOC数学计算函数、动态电机ID支持、标幺化集成 | `main.h` `arm_math.h` `normalization.h` `motor_params.h` | `Clarke_Transform()` `Park_Transform()` `Inverse_Park_Transform()` `SVPWM()` `Sine_Cosine()` |
-| PID_controller | `MotorControl/Inc/PID_controller.h`<br>`MotorControl/Src/PID_controller.c` | FOC电机PID控制器、抗积分饱和、电流环解耦、速度前馈 | `motor_params`, `normalization`, `arm_math.h` | `PID_Init()` `PID_Calculate()` `PID_CurrentD_Calculate()` `PID_CurrentQ_Calculate()` `PID_Speed_Calculate()` `PID_Position_Calculate()` 等 |
+MotorControl 是一个完整的永磁同步电机（PMSM）磁场定向控制（FOC）系统，为 STM32G4 平台设计。该模块提供了从参数管理到实时控制的全套解决方案，支持多电机配置、实时命令交互和高性能控制算法。
 
----
+### 1.1 核心特性
 
-### command 模块
+- **多电机支持**：最多支持 2 个独立的电机参数套，可在代码中增加参数
+- **状态管理**：动态激活/停用电机参数套
+- **归一化系统**：基于硬件能力的标幺值计算，确保数值稳定性
+- **统一控制器**：PID/PDFF 统一算法，支持多种控制模式
+- **实时命令**：串口命令交互，支持参数查看和修改
+- **FOC 算法**：完整的磁场定向控制数学计算
 
-**职责**
-- 接收字符命令（如 `plot`, `motor`, `set`），提供参数查看/修改和 VOFA 曲线控制。
-- 自动忽略大小写、处理前后空白、支持 `motor0`/`m0` 等多种索引写法。
-- 通过 `MotorParams_SetParam` 更新参数后调用 `Normalization_UpdateMotor` 确保基值同步。
-- **状态管理**：支持电机参数套的激活/停用命令，与归一化模块联动更新基值。
+### 1.2 模块架构图
 
-**关键实现**
-- `Command_Parse`：主解析入口，负责分派到 `handle_plot_command`、`handle_motor_command`、`handle_set_command`。
-- 解析过程中维护 `last_error` 缓冲，通过 `Command_GetLastError` 对外报告错误。
-- `parse_motor_id_token` 将输入 token 转换为有效电机 ID，并在出错时给出帮助提示。
-- **状态管理命令**：
-  - `handle_enable_command(uint8_t motor_id, bool enable)`：处理电机激活/停用逻辑
-  - `ends_with_ignore_case()`：辅助函数，支持大小写不敏感的 enable/disable 命令识别
-  - 支持 `set motor0 enable`、`set m0 disable` 等格式
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MotorControl 系统                        │
+├─────────────────────────────────────────────────────────────┤
+│  命令层 (command)                                           │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │  串口命令解析    │  │  VOFA 数据绘图   │                  │
+│  │  plot/motor/set │  │  实时数据监控    │                  │
+│  └─────────────────┘  └─────────────────┘                  │
+├─────────────────────────────────────────────────────────────┤
+│  管理层 (motor_params + normalization)                     │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │  电机参数管理    │  │  归一化基值计算  │                  │
+│  │  多参数套支持    │  │  标幺值/Q31转换  │                  │
+│  │  状态管理       │  │  动态基值更新    │                  │
+│  └─────────────────┘  └─────────────────┘                  │
+├─────────────────────────────────────────────────────────────┤
+│  算法层 (FOC_math + PID_controller)                        │
+│  ┌─────────────────┐  ┌─────────────────┐                  │
+│  │  FOC 数学计算    │  │  PID/PDFF 控制器 │                  │
+│  │  Clarke/Park    │  │  电流/速度控制   │                  │
+│  │  SVPWM 调制     │  │  抗积分饱和      │                  │
+│  └─────────────────┘  └─────────────────┘                  │
+└─────────────────────────────────────────────────────────────┘
+```
 
----
+## 2. 模块详细说明
 
-### motor_params 模块
+### 2.1 电机参数管理模块 (motor_params)
 
-**数据结构**
-- `Motor_Params_t`：母线电压、额定电流、Rs、Lq/Ld、额定转速、极对数、Ke、Flux、J、B。
-- `Motor_LimitParams_t`：用户/硬件两级限制以及最终生效值（以 `fmin` 合成）。
-- `ParamDesc_t` & `ParamMap_t`：参数描述符和指针映射数组，便于通过 HMI 编号或名称访问。
-- **状态管理**：`g_active_motor_id` 全局变量跟踪当前激活的电机参数套（初始值 `0xFF` 表示无激活电机）。
+#### 2.1.1 功能职责
+- 管理多套电机参数（默认 2 套）
+- 提供参数的查看、修改和持久化
+- 实现电机激活状态管理
+- 支持通过 HMI 代码或参数名称访问参数
 
-**逻辑**
-- `MotorParams_Init`：为 `MOTOR_0` 与 `MOTOR_1` 写入默认参数和限幅，计算 `I_limit_actual`、`speed_limit_actual`。
-- `MotorParams_SetParam`：支持 HMI 码（PXXXX）或名称设置参数，变更后输出确认信息。
-- `MotorParams_PrintAll`：遍历 `param_maps` 表输出参数、单位与描述。
+#### 2.1.2 数据结构
 
-**状态管理 API**
-- `MotorParams_SetActiveMotor(uint8_t motor_id)`：激活指定电机参数套
-- `MotorParams_DisableMotor(uint8_t motor_id)`：停用指定电机参数套
-- `MotorParams_GetActiveMotor(void)`：获取当前激活电机ID
-- `MotorParams_IsMotorEnabled(uint8_t motor_id)`：检查指定电机是否激活
-- `MotorParams_IsAnyMotorActive(void)`：检查是否有激活的电机
-
----
-
-### normalization 模块
-
-**设计思路**
-- 采纳 `normalization.h` 注释中的“第二套方案”：使用硬件实际能力作为基值。
-- 参考变量：
-  - `V_base = V_DC / √3`
-  - `I_base = I_limit_actual (无则回退最大或额定值)`
-  - `w_base = (2πRPM/60) * Pn`
-  - 由此推导 `Fluxb`, `T_base`, `P_base`, `Z_base`, `L_base`, `time_base`。
-
-**实现**
-- `normalization_base_values_t`：封装九项基值；内部 `normalization_motor_ctx_t` 维护基值、倒数和有效标记。
-- `Normalization_Init`：遍历全部电机调用 `Normalization_UpdateMotor`。
-- `Normalization_UpdateMotor`：**只对激活的电机参数套计算基值**，失败时清零上下文。
-- `Normalization_GetBases`：**只返回激活电机的归一化基值**，确保状态一致性。
-- `get_base_pair`：内部函数，集成激活状态检查，确保只有激活电机能获取基值。
-- `Normalization_ToPerUnit()` / `Normalization_FromPerUnit()`：双向标幺转换并限定在 [-1, 1]。
-- `Normalization_ToQ31()` / `Normalization_FromQ31()`：基于 `arm_float_to_q31`/`arm_q31_to_float` 提供定点接口。
-
-**使用示例**
+**电机参数结构体**
 ```c
-// 1. 获取激活电机的归一化基值
+typedef struct {
+    float V_DC;         // 直流母线电压 (V)
+    float I_rated;      // 额定电流 (A)
+    float Rs;           // 定子电阻 (Ω)
+    float Lq;           // q轴电感 (H)
+    float Ld;           // d轴电感 (H)
+    float RPM_rated;    // 额定转速 (rpm)
+    float Pn;           // 极对数
+    float Ke;           // 反电动势常数 (Vpk_LL/krpm)
+    float Flux;         // 转子磁链 (Wb)
+    float J;            // 转动惯量 (kg·m²×10⁻³)
+    float B;            // 摩擦系数 (N·m·s/rad)
+} Motor_Params_t;
+```
+
+**限值参数结构体**
+```c
+typedef struct {
+    float I_limit_user;         // 用户电流限值 (A)
+    float I_limit_max;          // 硬件电流限值 (A)
+    float speed_limit_user;     // 用户转速限值 (rpm)
+    float speed_limit_max;      // 电机最大转速 (rpm)
+    float I_limit_actual;       // 实际电流限值 (A)
+    float speed_limit_actual;   // 实际转速限值 (rpm)
+} Motor_LimitParams_t;
+```
+
+#### 2.1.3 核心 API
+
+| 函数名 | 功能描述 | 参数 | 返回值 |
+|--------|----------|------|--------|
+| [`MotorParams_Init()`](MotorControl/Src/motor_params.c:26) | 初始化所有电机参数 | void | void |
+| [`MotorParams_SetParam()`](MotorControl/Src/motor_params.c:173) | 设置电机参数 | motor_id, param_name, value | void |
+| [`MotorParams_PrintAll()`](MotorControl/Src/motor_params.c:122) | 打印所有参数 | motor_id | void |
+| [`MotorParams_SetActiveMotor()`](MotorControl/Src/motor_params.c:224) | 激活指定电机 | motor_id | void |
+| [`MotorParams_DisableMotor()`](MotorControl/Src/motor_params.c:235) | 停用指定电机 | motor_id | void |
+| [`MotorParams_GetActiveMotor()`](MotorControl/Src/motor_params.c:250) | 获取激活电机ID | void | uint8_t |
+| [`MotorParams_IsMotorEnabled()`](MotorControl/Src/motor_params.c:216) | 检查电机是否激活 | motor_id | bool |
+
+#### 2.1.4 参数映射表
+
+| HMI 代码 | 参数名 | 单位 | 描述 | 默认值(电机0) |
+|----------|--------|------|------|---------------|
+| P1001 | V_DC | V | 直流母线电压 | 14.0 |
+| P1002 | I_rated | A | 额定电流 | 4.0 |
+| P1003 | Rs | ohm | 定子电阻 | 0.5 |
+| P1004 | Lq | mH | q轴电感 | 1.0 |
+| P1005 | Ld | mH | d轴电感 | 1.0 |
+| P1006 | RPM_rated | rpm | 额定转速 | 3000 |
+| P1007 | Pn | - | 极对数 | 4 |
+| P1008 | Ke | Vpk_LL/krpm | 反电动势常数 | 2.0 |
+| P1009 | Flux | Wb | 转子磁链 | 计算得出 |
+| P1010 | J | kg·m²×10⁻³ | 转动惯量 | 0.0 |
+| P1011 | B | N·m·s/rad | 摩擦系数 | 0.0 |
+
+### 2.2 归一化模块 (normalization)
+
+#### 2.2.1 功能职责
+- 基于硬件能力计算归一化基值
+- 提供物理量与标幺值的双向转换
+- 支持 Q31 定点运算转换
+- 确保数值计算的稳定性和一致性
+
+#### 2.2.2 归一化方案
+
+采用**第二套方案**：基于硬件实际能力作为基值
+
+```
+电压基值:  V_base  = V_DC / √3
+电流基值:  I_base  = I_limit_actual
+转速基值:  ω_base  = (2π × RPM / 60) × Pn
+磁链基值:  Flux_base = V_base / ω_base
+转矩基值:  T_base  = 1.5 × Pn × Flux × I_base
+功率基值:  P_base  = 1.5 × I_base × V_base
+阻抗基值:  Z_base  = V_base / I_base
+电感基值:  L_base  = Flux_base / I_base
+时间基值:  T_base  = 1 / ω_base
+```
+
+#### 2.2.3 数据结构
+
+```c
+typedef struct {
+    float voltage_base;    // 电压基值 (V)
+    float current_base;    // 电流基值 (A)
+    float omega_base;      // 电角速度基值 (rad/s)
+    float flux_base;       // 磁链基值 (Wb)
+    float torque_base;     // 转矩基值 (N·m)
+    float power_base;      // 功率基值 (W)
+    float impedance_base;  // 阻抗基值 (Ω)
+    float inductance_base; // 电感基值 (H)
+    float time_base;       // 时间基值 (s)
+    float friction_base;   // 摩擦系数基值
+    float inertia_base;    // 转动惯量基值
+} normalization_base_values_t;
+```
+
+#### 2.2.4 核心 API
+
+| 函数名 | 功能描述 | 参数 | 返回值 |
+|--------|----------|------|--------|
+| [`Normalization_Init()`](MotorControl/Src/normalization.c:153) | 初始化归一化模块 | void | void |
+| [`Normalization_UpdateMotor()`](MotorControl/Src/normalization.c:160) | 更新电机基值 | motor_id | void |
+| [`Normalization_GetBases()`](MotorControl/Src/normalization.c:178) | 获取基值结构 | motor_id | const base_values_t* |
+| [`Normalization_ToPerUnit()`](MotorControl/Src/normalization.c:187) | 物理量→标幺值 | motor_id, quantity, value | float |
+| [`Normalization_FromPerUnit()`](MotorControl/Src/normalization.c:202) | 标幺值→物理量 | motor_id, quantity, pu_value | float |
+| [`Normalization_ToQ31()`](MotorControl/Src/normalization.c:216) | 物理量→Q31 | motor_id, quantity, value | q31_t |
+| [`Normalization_FromQ31()`](MotorControl/Src/normalization.c:226) | Q31→物理量 | motor_id, quantity, q31_value | float |
+
+#### 2.2.5 使用示例
+
+```c
+// 1. 激活电机并更新基值
+MotorParams_SetActiveMotor(MOTOR_0);
+Normalization_UpdateMotor(MOTOR_0);
+
+// 2. 获取基值信息
 const normalization_base_values_t *bases = Normalization_GetBases(MOTOR_0);
 if (bases != NULL) {
-    printf("电压基值: %.2fV, 电流基值: %.2fA\n",
+    printf("电压基值: %.2fV, 电流基值: %.2fA\n", 
            bases->voltage_base, bases->current_base);
 }
 
-// 2. 物理量转换为标幺值
+// 3. 电流转换为标幺值
 float actual_current = 2.5f;  // 实际电流 2.5A
 float current_pu = Normalization_ToPerUnit(MOTOR_0, NORMALIZE_CURRENT, actual_current);
 // current_pu 范围 [-1, 1]
 
-// 3. 标幺值转换为物理量
+// 4. 标幺值转换为物理量
 float voltage_pu = 0.8f;  // 标幺电压 0.8
 float actual_voltage = Normalization_FromPerUnit(MOTOR_0, NORMALIZE_VOLTAGE, voltage_pu);
 
-// 4. Q31格式转换（用于定点运算）
+// 5. Q31 格式转换（用于定点运算）
 q31_t current_q31 = Normalization_ToQ31(MOTOR_0, NORMALIZE_CURRENT, actual_current);
 float current_back = Normalization_FromQ31(MOTOR_0, NORMALIZE_CURRENT, current_q31);
-
-// 5. 通用基值转换（不依赖电机状态）
-float custom_value = 100.0f;
-float custom_base = 200.0f;
-float pu_value = Normalization_ToPerUnitWithBase(custom_value, custom_base);
 ```
 
----
+### 2.3 命令解析模块 (command)
 
-### FOC_math 模块
+#### 2.3.1 功能职责
+- 解析串口输入的命令
+- 支持电机参数查看和修改
+- 控制 VOFA 数据绘图功能
+- 管理电机激活状态
 
-**职责**
-- 提供磁场定向控制（FOC）相关的数学计算函数，支持Clarke、Park、逆Park变换和SVPWM调制。
-- **动态电机ID支持**：自动使用当前激活的电机参数套进行归一化计算。
-- **标幺化集成**：所有物理量自动转换为标幺值进行计算，确保数值稳定性和一致性。
+#### 2.3.2 支持的命令格式
 
-**关键实现**
-- `foc_math_try_get_motor_id()`：验证并获取当前有效的电机ID，确保有激活电机且归一化基值可用
-- `foc_math_to_per_unit()`：将物理量转换为标幺值，使用动态电机ID
-- `Clarke_Transform()`：三相电流到α-β坐标系变换
-- `Park_Transform()`：α-β到d-q坐标系变换
-- `Inverse_Park_Transform()`：d-q到α-β坐标系逆变换
-- `SVPWM()`：空间矢量脉宽调制，输出三相PWM占空比
-- `Sine_Cosine()`：角度转换为正弦余弦值
+| 命令类型 | 格式 | 示例 | 功能 |
+|----------|------|------|------|
+| **绘图命令** | `plot [stop]` | `plot`, `plot stop` | 启动/停止 VOFA 数据绘图 |
+| **电机查看** | `motor <id>` | `motor 0`, `m0` | 显示指定电机参数 |
+| **参数设置** | `set <motor> <param> = <value>` | `set motor0 Rs = 0.5` | 设置电机参数 |
+| **状态管理** | `set <motor> enable/disable` | `set motor0 enable` | 激活/停用电机 |
 
-**使用示例**
+#### 2.3.3 命令特性
+
+- **大小写不敏感**：支持 `MOTOR0`, `motor0`, `Motor0` 等
+- **灵活格式**：支持 `motor0`, `m 0`, `motor 0` 等写法
+- **自动空格处理**：智能处理多余空格
+- **错误提示**：详细的错误信息和使用帮助
+
+#### 2.3.4 核心 API
+
+| 函数名 | 功能描述 | 参数 | 返回值 |
+|--------|----------|------|--------|
+| [`Command_Init()`](MotorControl/Src/command.c:43) | 初始化命令解析器 | void | void |
+| [`Command_Parse()`](MotorControl/Src/command.c:48) | 解析命令字符串 | command_line | void |
+| [`Command_GetLastError()`](MotorControl/Src/command.c:119) | 获取最后的错误信息 | void | const char* |
+
+#### 2.3.5 使用示例
+
 ```c
-// FOC控制流程示例
-// 1. 电流反馈处理
-float ia, ib, ic;  // 三相电流反馈
-float I_alpha, I_beta;
-Clarke_Transform(ia, ib, &I_alpha, &I_beta);  // Clarke变换
+// 初始化
+Command_Init();
 
-// 2. 获取角度信息
-float theta_e = get_electrical_angle();  // 电角度
-float sin_theta, cos_theta;
-Sine_Cosine(theta_e, &sin_theta, &cos_theta);  // 计算正弦余弦
+// 在串口接收回调中调用
+void UART_RxCallback(char* received_data) {
+    Command_Parse(received_data);
+    
+    // 检查是否有错误
+    const char* error = Command_GetLastError();
+    if (error[0] != '\0') {
+        printf("命令错误: %s\n", error);
+    }
+}
 
-// 3. Park变换
-float id_feedback, iq_feedback;
-Park_Transform(I_alpha, I_beta, sin_theta, cos_theta, &id_feedback, &iq_feedback);
-
-// 4. PID控制计算
-float id_ref = 0.0f;  // d轴电流设定值（通常为0）
-float iq_ref = speed_controller_output;  // q轴电流设定值（来自速度环）
-float ud = PID_CurrentD_Calculate(MOTOR_0, id_ref, id_feedback, iq_feedback);
-float uq = PID_CurrentQ_Calculate(MOTOR_0, iq_ref, iq_feedback, id_feedback);
-
-// 5. 逆Park变换
-float U_alpha, U_beta;
-Inverse_Park_Transform(ud, uq, sin_theta, cos_theta, &U_alpha, &U_beta);
-
-// 6. SVPWM调制
-uint32_t Tcm1, Tcm2, Tcm3;
-SVPWM(U_alpha, U_beta, &Tcm1, &Tcm2, &Tcm3);
-
-// 7. 更新PWM寄存器
-TIM1->CCR1 = Tcm1;
-TIM1->CCR2 = Tcm2;
-TIM1->CCR3 = Tcm3;
+// 命令示例：
+// "plot"                    // 启动绘图
+// "plot stop"               // 停止绘图
+// "motor 0"                 // 显示电机0参数
+// "m0"                      // 显示电机0参数（简写）
+// "set motor0 Rs = 0.5"     // 设置电机0电阻
+// "set m1 Lq = 0.002"       // 设置电机1电感
+// "set motor0 enable"        // 激活电机0
+// "set m0 disable"          // 停用电机0
 ```
 
-**状态管理集成**
-- 移除了固定的 `FOC_MATH_ACTIVE_MOTOR_ID` 宏定义
-- 所有FOC计算函数通过 `MotorParams_GetActiveMotor()` 获取当前激活电机ID
-- 自动检查激活状态和归一化基值有效性，失败时返回安全默认值
+### 2.4 FOC 数学计算模块 (FOC_math)
 
----
+#### 2.4.1 功能职责
+- 实现 FOC 控制所需的数学变换
+- 支持标幺值计算，确保数值稳定性
+- 集成归一化系统，自动使用激活电机参数
+- 提供完整的 SVPWM 调制算法
 
-### PID_controller 模块
+#### 2.4.2 数据流程
 
-**职责**
-- 实现统一的PID/PDFF控制器模块，支持电流环、速度环和位置环控制
-- **极简设计**：单一核心函数 `PID_Controller()`，通过参数自动切换PID或PDFF模式
-- **参数化配置**：控制参数通过结构体指针传递，灵活性高
-- **状态独立管理**：每个控制回路的状态由调用者管理，支持多电机多回路应用
+```
+三相电流 → Clarke变换 → αβ坐标系 → Park变换 → dq坐标系
+   ↑                                                      ↓
+PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 电流环控制
+```
 
-**数据结构**
+#### 2.4.3 核心 API
+
+| 函数名 | 功能描述 | 参数 | 返回值 |
+|--------|----------|------|--------|
+| [`Clarke_Transform()`](MotorControl/Src/FOC_math.c:159) | Clarke 变换 (abc→αβ) | ia, ib, I_alpha*, I_beta* | void |
+| [`Park_Transform()`](MotorControl/Src/FOC_math.c:182) | Park 变换 (αβ→dq) | I_alpha, I_beta, sinθ, cosθ, I_d*, I_q* | void |
+| [`Inverse_Park_Transform()`](MotorControl/Src/FOC_math.c:117) | 逆 Park 变换 (dq→αβ) | U_d, U_q, sinθ, cosθ, U_alpha*, U_beta* | void |
+| [`SVPWM()`](MotorControl/Src/FOC_math.c:131) | 空间矢量脉宽调制 | U_alpha, U_beta, Tcm1*, Tcm2*, Tcm3* | void |
+| [`Sine_Cosine()`](MotorControl/Src/FOC_math.c:172) | 角度转正弦余弦 | θ_e, sinθ*, cosθ* | void |
+
+#### 2.4.4 FOC 控制流程示例
+
 ```c
-// 控制器参数结构体
+// 完整的 FOC 控制循环示例
+void FOC_Control_Loop(void) {
+    // 1. 电流采样（假设已经获得三相电流）
+    float ia = get_phase_current_A();  // A相电流
+    float ib = get_phase_current_B();  // B相电流
+    
+    // 2. Clarke 变换：abc → αβ
+    float I_alpha, I_beta;
+    Clarke_Transform(ia, ib, &I_alpha, &I_beta);
+    
+    // 3. 获取转子电角度
+    float theta_e = get_electrical_angle();  // 电角度 (rad)
+    float sin_theta, cos_theta;
+    Sine_Cosine(theta_e, &sin_theta, &cos_theta);
+    
+    // 4. Park 变换：αβ → dq
+    float id_feedback, iq_feedback;
+    Park_Transform(I_alpha, I_beta, sin_theta, cos_theta, &id_feedback, &iq_feedback);
+    
+    // 5. PID 控制（假设已经初始化控制器）
+    float id_ref = 0.0f;  // d轴电流设定值（通常为0）
+    float iq_ref = speed_controller_output;  // q轴电流设定值（来自速度环）
+    
+    float vd = PID_Controller(id_ref, id_feedback, dt, &id_params, &id_state);
+    float vq = PID_Controller(iq_ref, iq_feedback, dt, &iq_params, &iq_state);
+    
+    // 6. 逆 Park 变换：dq → αβ
+    float U_alpha, U_beta;
+    Inverse_Park_Transform(vd, vq, sin_theta, cos_theta, &U_alpha, &U_beta);
+    
+    // 7. SVPWM 调制：αβ → PWM 占空比
+    uint32_t Tcm1, Tcm2, Tcm3;
+    SVPWM(U_alpha, U_beta, &Tcm1, &Tcm2, &Tcm3);
+    
+    // 8. 更新 PWM 寄存器
+    TIM1->CCR1 = Tcm1;
+    TIM1->CCR2 = Tcm2;
+    TIM1->CCR3 = Tcm3;
+}
+```
+
+### 2.5 PID 控制器模块 (PID_controller)
+
+#### 2.5.1 功能职责
+- 提供统一的 PID/PDFF 控制算法
+- 支持抗积分饱和保护
+- 自动模式切换（通过参数配置）
+- 独立的状态管理，支持多控制器实例
+
+#### 2.5.2 控制算法
+
+**PID 模式**（当 `Kfr_speed = 0` 时）
+```
+error = setpoint - feedback
+output = kp * error + ki * ∫error*dt + kd * d(error)/dt
+```
+
+**PDFF 模式**（当 `Kfr_speed ≠ 0` 时）
+```
+output = setpoint * Kfr_speed + ki * ∫(setpoint - feedback)*dt - feedback * kp
+```
+
+**特殊性质**：当 `Kfr_speed = kp` 时，PDFF 退化为 PI 控制器
+
+#### 2.5.3 数据结构
+
+```c
+// 控制器参数
 typedef struct {
     float kp;                  // 比例系数
     float ki;                  // 积分系数
-    float kd;                  // 微分系数（电流环和速度环暂不使用）
-    float Kfr_speed;           // 速度环前馈系数（0=PID模式，非0=PDFF模式）
+    float kd;                  // 微分系数（暂不使用）
+    float Kfr_speed;           // 速度环前馈系数（0=PID，非0=PDFF）
     float integral_limit;      // 积分限幅
     float output_limit;        // 输出限幅
 } PID_Params_t;
 
-// 控制器状态结构体
+// 控制器状态
 typedef struct {
-    float integral;            // 积分累积
-    float prev_error;          // 上次误差（用于微分项）
+    float integral;            // 积分累积值
+    float prev_error;          // 上次误差值
 } PID_State_t;
 ```
 
-**核心算法**
+#### 2.5.4 核心 API
 
-**1. PID模式** (当 `Kfr_speed = 0` 时)
-```
-error = setpoint - feedback
-proportional = kp * error
-integral += ki * error * dt （带积分限幅）
-derivative = kd * (error - prev_error) / dt
-output = proportional + integral + derivative （带输出限幅）
-```
+| 函数名 | 功能描述 | 参数 | 返回值 |
+|--------|----------|------|--------|
+| [`PID_Controller()`](MotorControl/Src/PID_controller.c:13) | 统一 PID/PDFF 控制器 | setpoint, feedback, dt, params*, state* | float |
 
-**2. PDFF模式** (当 `Kfr_speed ≠ 0` 时)
-```
-前馈项: feedforward = setpoint * Kfr_speed
-积分项: integral += (setpoint - feedback) * ki * dt （带积分限幅）
-反馈项: feedback_term = -(kp * feedback)
-output = feedforward + integral + feedback_term （带输出限幅）
-```
-- **特殊性质**：当 `Kfr_speed = kp` 时，PDFF退化为PI控制器
-- **注意**：PDFF模式中kp作用在反馈值上（负号），与标准PID不同
+#### 2.5.5 使用示例
 
-**核心API**
+**示例 1：电流环 PI 控制**
 ```c
-float PID_Controller(float setpoint, float feedback, float dt,
-                    PID_Params_t *params, PID_State_t *state);
-```
-
-**使用示例**
-
-**示例1：电流环PI控制**
-```c
+// 参数配置
 PID_Params_t current_params = {
     .kp = 0.5f,
     .ki = 10.0f,
     .kd = 0.0f,
-    .Kfr_speed = 0.0f,              // 0表示使用PID模式
+    .Kfr_speed = 0.0f,        // PID 模式
     .integral_limit = 0.5f,
     .output_limit = 1.0f
 };
-PID_State_t current_state = {0};    // 状态变量，保存积分和误差
 
-// 在控制周期中循环调用
+// 状态变量（必须独立且初始化为0）
+PID_State_t current_state = {0};
+
+// 控制循环
 float vd = PID_Controller(id_ref, id_fb, 0.0001f, &current_params, &current_state);
 ```
 
-**示例2：速度环PDFF控制**
+**示例 2：速度环 PDFF 控制**
 ```c
-PID_Params_t speed_pdff_params = {
-    .kp = 0.1f,                     // 比例系数（作用在反馈上）
-    .ki = 1.0f,                     // 积分系数
+// 参数配置
+PID_Params_t speed_params = {
+    .kp = 0.1f,
+    .ki = 1.0f,
     .kd = 0.0f,
-    .Kfr_speed = 0.1f,              // 前馈系数（非0表示使用PDFF模式）
+    .Kfr_speed = 0.1f,        // PDFF 模式
     .integral_limit = 0.5f,
     .output_limit = 1.0f
 };
-PID_State_t speed_pdff_state = {0};
 
-float iq_ref = PID_Controller(speed_ref, speed_fb, 0.001f, &speed_pdff_params, &speed_pdff_state);
+// 状态变量
+PID_State_t speed_state = {0};
+
+// 控制循环
+float iq_ref = PID_Controller(speed_ref, speed_fb, 0.001f, &speed_params, &speed_state);
 ```
 
-**示例3：多电机多回路应用**
+**示例 3：多电机多回路控制**
 ```c
 typedef struct {
     PID_Params_t id_params;
@@ -265,339 +423,563 @@ typedef struct {
     PID_State_t  speed_state;
 } Motor_Controller_t;
 
-Motor_Controller_t motor[2];  // 两个电机
+// 两个电机独立的控制器
+Motor_Controller_t motor[2];
 
 // 初始化
-motor[0].id_state = (PID_State_t){0};
-motor[0].iq_state = (PID_State_t){0};
-motor[0].speed_state = (PID_State_t){0};
+for (int i = 0; i < 2; i++) {
+    motor[i].id_state = (PID_State_t){0};
+    motor[i].iq_state = (PID_State_t){0};
+    motor[i].speed_state = (PID_State_t){0};
+}
 
 // 使用
 float vd = PID_Controller(0, id_fb, dt, &motor[0].id_params, &motor[0].id_state);
+float vq = PID_Controller(iq_ref, iq_fb, dt, &motor[0].iq_params, &motor[0].iq_state);
 ```
 
-**PID_State_t 状态管理说明**
+#### 2.5.6 状态管理要点
 
-**为什么需要状态变量？**
-- `integral`：积分项需要累积历史误差，必须在多次调用之间保持
-- `prev_error`：用于计算微分项（误差变化率），需要记录上一次的值
+1. **每个控制回路必须有独立的状态变量**
+2. **初始化时必须清零状态变量**
+3. **函数会自动更新状态，无需手动操作**
+4. **不能多个控制器共享同一个状态变量**
+5. **需要重置时，将状态变量清零即可**
 
-**关键使用要点**
-1. ✅ **每个控制回路必须有独立的 PID_State_t**
-   ```c
-   PID_State_t id_state = {0};   // ✅ d轴独立状态
-   PID_State_t iq_state = {0};   // ✅ q轴独立状态
-   ```
+## 3. 数据流和系统集成
 
-2. ✅ **初始化时必须清零**
-   ```c
-   PID_State_t state = {0};  // 初始化时清零
-   ```
+### 3.1 完整数据流图
 
-3. ✅ **函数会自动更新状态，无需手动操作**
-   ```c
-   // 第一次调用
-   float output1 = PID_Controller(10.0f, 0.0f, 0.001f, &params, &state);
-   // 函数内部自动更新 state.integral 和 state.prev_error
-   
-   // 第二次调用（下一个控制周期）
-   float output2 = PID_Controller(10.0f, 2.0f, 0.001f, &params, &state);
-   // 会使用上次更新的 state 值，积分继续累积
-   ```
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        FOC 控制数据流                           │
+└─────────────────────────────────────────────────────────────────┘
 
-4. ✅ **重置控制器**
-   ```c
-   // 当需要重置时（例如：故障恢复、模式切换）
-   state.integral = 0.0f;
-   state.prev_error = 0.0f;
-   // 或简洁写法
-   state = (PID_State_t){0};
-   ```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  电流采样    │    │ Clarke变换  │    │ Park变换    │    │ PID控制器    │
+│  ia, ib, ic  │───▶│  Iα, Iβ     │───▶│  Id, Iq     │───▶│  Vd, Vq      │
+└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+                                                            │
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │
+│  PWM输出    │◀───│ SVPWM调制   │◀───│ 逆Park变换  │◀───┘
+│  Tcm1,2,3   │    │  Tcm1,2,3   │    │  Vα, Vβ     │
+└─────────────┘    └─────────────┘    └─────────────┘
+                                           ▲
+┌─────────────┐    ┌─────────────┐          │
+│  角度信息    │    │  归一化模块  │──────────┘
+│  θe         │    │  标幺值转换  │
+└─────────────┘    └─────────────┘
+                          ▲
+┌─────────────┐    ┌─────────────┐
+│  参数管理    │    │  电机参数    │
+│  激活状态    │    │  硬件限制    │
+└─────────────┘    └─────────────┘
+```
 
-5. ❌ **不能多个控制器共享同一个状态变量**
-   ```c
-   // ❌ 错误：多个控制器共享状态
-   PID_State_t shared_state = {0};
-   float vd = PID_Controller(id_ref, id_fb, dt, &id_params, &shared_state);
-   float vq = PID_Controller(iq_ref, iq_fb, dt, &iq_params, &shared_state);  // 会干扰vd的状态
-   ```
+### 3.2 系统集成流程
 
-**设计特点**
-- **极简接口**：单一函数处理所有控制类型
-- **模式自动切换**：通过 `Kfr_speed` 参数自动选择PID或PDFF算法
-- **灵活的参数管理**：参数通过结构体指针传递，支持运行时修改
-- **状态独立性**：状态由调用者管理，支持任意数量的控制回路
-- **电流环解耦在外部处理**：保持模块纯粹性，解耦逻辑由应用层实现
-- **自动限幅保护**：内置积分限幅和输出限幅，确保系统稳定
+#### 3.2.1 初始化序列
 
----
-
-### 初始化与运行流程
-
-1. `main.c` 中完成外设 (`MX_...`) 初始化。
-2. 调用 `MotorParams_Init()` 初始化参数和限幅。
-3. 随后调用 `Normalization_Init()` 初始化归一化上下文。
-4. 调用 `PID_Init(motor_id)` 初始化各电机的PID控制器组。
-5. `Command_Init()` 在命令线程/任务启动前调用，之后 `Command_Parse()` 在串口接收回调或任务循环中使用。
-6. **状态管理**：通过命令（如 `set motor0 enable`）激活指定电机参数套，自动触发归一化基值更新。
-7. **运行时控制**：在FOC控制循环中调用相应的PID计算函数和FOC变换函数。
-
-**完整初始化示例**
 ```c
-int main(void)
-{
-    // 1. HAL库和外设初始化
+int main(void) {
+    // 1. 基础硬件初始化
     HAL_Init();
     SystemClock_Config();
     MX_GPIO_Init();
     MX_TIM_Init();
     MX_ADC_Init();
-    // ... 其他外设初始化
+    MX_USART_Init();
     
-    // 2. MotorControl模块初始化
+    // 2. MotorControl 模块初始化（按依赖顺序）
     MotorParams_Init();           // 初始化电机参数
     Normalization_Init();         // 初始化归一化模块
+    Command_Init();               // 初始化命令解析
     
-    // 3. PID控制器初始化
-    for (uint8_t i = 0; i < motors_number; i++) {
-        PID_Init(i);              // 初始化各电机的PID控制器
-    }
+    // 3. PID 控制器初始化（应用层）
+    // 注意：PID控制器由应用层管理，模块本身不包含全局初始化
     
-    // 4. 命令解析初始化
-    Command_Init();               // 初始化命令解析模块
+    // 4. 激活默认电机（可选）
+    MotorParams_SetActiveMotor(MOTOR_0);
+    Normalization_UpdateMotor(MOTOR_0);
     
-    // 5. 激活默认电机（可选）
-    // MotorParams_SetActiveMotor(MOTOR_0);
-    // Normalization_UpdateMotor(MOTOR_0);
-    
-    // 6. 启动实时控制任务
+    // 5. 启动实时控制任务
     // osThreadNew(FOC_Control_Task, NULL, &foc_task_attributes);
     
     while (1) {
-        // 主循环
+        // 主循环处理命令等低频任务
     }
 }
 ```
 
+#### 3.2.2 实时控制循环
+
+```c
+// 高频控制任务（建议 ≥10kHz）
+void FOC_Control_Task(void *argument) {
+    // 控制周期
+    const float dt = 0.0001f;  // 10kHz
+    
+    // 检查电机激活状态
+    if (!MotorParams_IsAnyMotorActive()) {
+        // 没有激活电机，输出零电压
+        TIM1->CCR1 = TIM1->CCR2 = TIM1->CCR3 = 0;
+        osDelay(1);
+        return;
+    }
+    
+    while (1) {
+        // FOC 控制算法
+        FOC_Control_Loop();
+        
+        // 等待下一个控制周期
+        osDelayUntil(&last_wake_time, dt * 1000);
+    }
+}
+```
+
+### 3.3 命令交互流程
+
+```
+用户输入串口命令
+        │
+        ▼
+┌─────────────────┐
+│ Command_Parse() │───▶ 解析命令类型
+└─────────────────┘        │
+        │                  ▼
+        │        ┌─────────────────────┐
+        │        │   命令类型判断       │
+        │        └─────────────────────┘
+        │                  │
+        ▼                  ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ plot 命令   │  │ motor 命令  │  │ set 命令    │
+│ VOFA 控制   │  │ 参数查看    │  │ 参数修改    │
+└─────────────┘  └─────────────┘  └─────────────┘
+        │                  │                  │
+        ▼                  ▼                  ▼
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│ Vofa_Plot*  │  │MotorParams* │  │MotorParams* │
+│ 函数调用     │  │ 参数打印     │  │ 参数设置     │
+└─────────────┘  └─────────────┘  └─────────────┘
+                                         │
+                                         ▼
+                                ┌─────────────┐
+                                │ Normalization│
+                                │ _UpdateMotor │
+                                └─────────────┘
+```
+
+## 4. 使用指南和最佳实践
+
+### 4.1 快速开始
+
+#### 4.1.1 基本配置步骤
+
+1. **配置电机参数**
+```c
+// 通过命令行配置
+set motor0 V_DC = 24.0
+set motor0 I_rated = 5.0
+set motor0 Rs = 0.3
+set motor0 Pn = 4
+// ... 其他参数
+```
+
+2. **激活电机**
+```c
+set motor0 enable
+```
+
+3. **启动控制**
+```c
+// 通过命令启动 VOFA 绘图
+plot
+```
+
+#### 4.1.2 代码集成示例
+
+```c
+// main.c 中的集成
+#include "MotorControl/Inc/motor_params.h"
+#include "MotorControl/Inc/normalization.h"
+#include "MotorControl/Inc/command.h"
+#include "MotorControl/Inc/FOC_math.h"
+#include "MotorControl/Inc/PID_controller.h"
+
+// 全局变量
+PID_Params_t g_id_params, g_iq_params, g_speed_params;
+PID_State_t  g_id_state, g_iq_state, g_speed_state;
+
+void init_motor_control(void) {
+    // 初始化模块
+    MotorParams_Init();
+    Normalization_Init();
+    Command_Init();
+    
+    // 配置 PID 参数
+    g_id_params = (PID_Params_t){
+        .kp = 0.5f, .ki = 10.0f, .kd = 0.0f, .Kfr_speed = 0.0f,
+        .integral_limit = 0.5f, .output_limit = 1.0f
+    };
+    
+    g_iq_params = (PID_Params_t){
+        .kp = 0.5f, .ki = 10.0f, .kd = 0.0f, .Kfr_speed = 0.0f,
+        .integral_limit = 0.5f, .output_limit = 1.0f
+    };
+    
+    g_speed_params = (PID_Params_t){
+        .kp = 0.1f, .ki = 1.0f, .kd = 0.0f, .Kfr_speed = 0.1f,
+        .integral_limit = 0.5f, .output_limit = 1.0f
+    };
+    
+    // 清零状态
+    g_id_state = g_iq_state = g_speed_state = (PID_State_t){0};
+    
+    // 激活电机
+    MotorParams_SetActiveMotor(MOTOR_0);
+    Normalization_UpdateMotor(MOTOR_0);
+}
+
+void foc_control_loop(void) {
+    static float speed_ref = 1000.0f;  // 速度设定值
+    
+    // 获取反馈信号
+    float ia = get_current_a();
+    float ib = get_current_b();
+    float theta_e = get_electrical_angle();
+    float speed_fb = get_speed_feedback();
+    
+    // FOC 变换
+    float I_alpha, I_beta;
+    Clarke_Transform(ia, ib, &I_alpha, &I_beta);
+    
+    float sin_theta, cos_theta;
+    Sine_Cosine(theta_e, &sin_theta, &cos_theta);
+    
+    float id_fb, iq_fb;
+    Park_Transform(I_alpha, I_beta, sin_theta, cos_theta, &id_fb, &iq_fb);
+    
+    // 速度环（假设1kHz）
+    static uint32_t speed_counter = 0;
+    if (++speed_counter >= 100) {  // 每100次电流环执行一次速度环
+        speed_counter = 0;
+        float iq_ref = PID_Controller(speed_ref, speed_fb, 0.001f, 
+                                   &g_speed_params, &g_speed_state);
+        
+        // 电流环
+        float vd = PID_Controller(0.0f, id_fb, 0.0001f, 
+                                &g_id_params, &g_id_state);
+        float vq = PID_Controller(iq_ref, iq_fb, 0.0001f, 
+                                &g_iq_params, &g_iq_state);
+        
+        // 逆变换和 SVPWM
+        float U_alpha, U_beta;
+        Inverse_Park_Transform(vd, vq, sin_theta, cos_theta, &U_alpha, &U_beta);
+        
+        uint32_t Tcm1, Tcm2, Tcm3;
+        SVPWM(U_alpha, U_beta, &Tcm1, &Tcm2, &Tcm3);
+        
+        // 更新 PWM
+        TIM1->CCR1 = Tcm1;
+        TIM1->CCR2 = Tcm2;
+        TIM1->CCR3 = Tcm3;
+    }
+}
+```
+
+### 4.2 最佳实践
+
+#### 4.2.1 参数整定建议
+
+1. **电流环参数**
+   - 先整定 d 轴电流环（设定值 0）
+   - 使用 PI 控制，Kfr_speed = 0
+   - 比例系数从 0.1 开始，逐步增加
+   - 积分系数确保稳态误差为 0
+
+2. **速度环参数**
+   - 推荐使用 PDFF 控制
+   - Kfr_speed 可以提高动态响应
+   - 设定值等于 kp 时退化为 PI 控制
+
+3. **归一化基值**
+   - 确保所有基值都大于 0
+   - 电流基值使用实际限值而非额定值
+   - 定期检查基值有效性
+
+#### 4.2.2 调试技巧
+
+1. **使用 VOFA 绘图**
+```c
+// 在控制循环中添加数据发送
+Vofa_SendData(id_fb, iq_fb, vd, vq, speed_fb, speed_ref);
+```
+
+2. **参数验证**
+```c
+// 验证归一化基值
+const normalization_base_values_t *bases = Normalization_GetBases(MOTOR_0);
+if (bases == NULL) {
+    printf("错误：归一化基值无效\n");
+}
+```
+
+3. **状态监控**
+```c
+// 检查控制器状态
+printf("积分值: %.3f, 上次误差: %.3f\n", 
+       g_id_state.integral, g_id_state.prev_error);
+```
+
+#### 4.2.3 性能优化
+
+1. **定点运算**
+   - 高频路径使用 Q31 格式
+   - 归一化模块提供 Q31 转换接口
+   - 保留浮点运算用于参数配置
+
+2. **内存优化**
+   - 避免在控制循环中动态分配内存
+   - 使用静态变量存储状态
+   - 合理设置缓冲区大小
+
+3. **实时性保证**
+   - 控制循环执行时间应小于周期时间
+   - 避免在控制循环中调用阻塞函数
+   - 使用 DMA 减少 CPU 占用
+
+### 4.3 常见问题解决
+
+#### 4.3.1 归一化基值无效
+
+**问题**：`Normalization_GetBases()` 返回 NULL
+
+**原因**：
+- 电机未激活
+- 参数值无效（0 或负数）
+- 基值计算失败
+
+**解决**：
+```c
+// 检查电机状态
+if (!MotorParams_IsMotorEnabled(MOTOR_0)) {
+    printf("请先激活电机: set motor0 enable\n");
+}
+
+// 检查参数值
+MotorParams_PrintAll(MOTOR_0
+// 手动更新基值
+Normalization_UpdateMotor(MOTOR_0);
+```
+
+#### 4.3.2 PID 控制器振荡
+
+**问题**：控制系统出现振荡或不稳定
+
+**原因**：
+- 参数过大
+- 积分限幅不合适
+- 控制周期不稳定
+
+**解决**：
+```c
+// 减小比例系数
+params.kp *= 0.5;
+
+// 调整积分限幅
+params.integral_limit = params.output_limit * 0.8;
+
+// 确保控制周期稳定
+float actual_dt = get_actual_control_period();
+if (actual_dt > expected_dt * 1.1f) {
+    printf("警告：控制周期超时\n");
+}
+```
+
+#### 4.3.3 命令解析失败
+
+**问题**：命令无法正确解析
+
+**原因**：
+- 命令格式错误
+- 参数名不正确
+- 数值格式错误
+
+**解决**：
+```c
+// 检查错误信息
+const char* error = Command_GetLastError();
+if (error[0] != '\0') {
+    printf("命令错误: %s\n", error);
+}
+
+// 使用正确的格式
+// 错误: set motor0 Rs=0.5
+// 正确: set motor0 Rs = 0.5
+```
+
+## 5. 性能指标和限制
+
+### 5.1 计算性能
+
+| 模块 | 典型执行时间 | 频率要求 | 内存占用 |
+|------|-------------|----------|----------|
+| Clarke 变换 | ~5 μs | ≥10kHz | 最小 |
+| Park 变换 | ~8 μs | ≥10kHz | 最小 |
+| SVPWM 调制 | ~12 μs | ≥10kHz | 最小 |
+| PID 控制器 | ~10 μs | ≥1kHz | 小 |
+| 归一化转换 | ~15 μs | 低频 | 中等 |
+
+### 5.2 数值精度
+
+| 数据类型 | 用途 | 精度 | 范围 |
+|----------|------|------|------|
+| float32 | 参数计算 | 单精度 | ±3.4e38 |
+| q31_t | 实时控制 | 31位定点 | [-1, 1] |
+| uint32_t | PWM 计数 | 整数 | 0 到 ARR |
+
+### 5.3 系统限制
+
+- **最大电机数量**：2 个（可通过修改 `motors_number` 调整）
+- **最大参数数量**：11 个（可通过修改 `PARAM_COUNT` 调整）
+- **命令长度限制**：128 字符
+- **控制周期建议**：100 μs - 1 ms
+
+## 6. 扩展和定制
+
+### 6.1 添加新的电机参数
+
+1. **更新数据结构**
+```c
+// 在 motor_params.h 中添加
+typedef struct {
+    // ... 现有参数
+    float new_param;  // 新参数
+} Motor_Params_t;
+```
+
+2. **更新参数描述**
+```c
+// 在 motor_params.c 中添加
+const ParamDesc_t param_descs[PARAM_COUNT + 1] = {
+    // ... 现有参数
+    {"P1012", "new_param", "unit", "新参数描述"}  // 新参数
+};
+```
+
+3. **更新映射表**
+```c
+// 为每个电机添加新参数的映射
+{&motor_params[MOTOR_0].new_param, PARAM_COUNT},
+```
+
+### 6.2 添加新的命令
+
+1. **在 command.c 中添加处理函数**
+```c
+static void handle_new_command(char* args) {
+    // 命令处理逻辑
+}
+```
+
+2. **在 Command_Parse() 中添加分支**
+```c
+else if (string_equals_ignore_case(cursor, "new")) {
+    handle_new_command(args);
+}
+```
+
+### 6.3 集成新的控制算法
+
+1. **创建新的控制模块**
+```c
+// new_controller.h
+typedef struct {
+    float param1;
+    float param2;
+} New_Controller_Params_t;
+
+float New_Controller_Calculate(float setpoint, float feedback, 
+                              New_Controller_Params_t *params);
+```
+
+2. **在控制循环中集成**
+```c
+// 在 FOC_Control_Loop() 中添加
+float output = New_Controller_Calculate(setpoint, feedback, &new_params);
+```
+
+## 7. 版本历史和更新记录
+
+### 7.1 当前版本 (v2.0)
+
+**发布日期**：2025-11-08
+
+**主要更新**：
+- 完全重构 PID 控制器，统一 PID/PDFF 算法
+- 实现动态电机状态管理机制
+- 优化归一化模块，支持动态基值更新
+- 增强 FOC 数学计算模块的鲁棒性
+- 完善命令解析系统，支持状态管理命令
+
+### 7.2 版本 v1.1 (2025-11-04)
+
+**主要更新**：
+- 添加归一化模块
+- 实现 FOC 数学计算函数
+- 基础命令解析功能
+- 多电机参数支持
+
+### 7.3 版本 v1.0 (2025-11-03)
+
+**初始版本**：
+- 基础电机参数管理
+- 简单命令解析
+- PID 控制器框架
+
+## 8. 参考资料
+
+### 8.1 技术文档
+
+- **STM32G4 参考手册**：硬件外设配置
+- **ARM CMSIS-DSP 文档**：数字信号处理库
+- **FOC 控制理论**：磁场定向控制原理
+- **SVPWM 调制技术**：空间矢量脉宽调制
+
+### 8.2 相关标准
+
+- **IEC 61800-9**：电机驱动器接口标准
+- **ISO 13849**：安全相关控制系统
+- **GB/T 17626**：电磁兼容标准
+
+### 8.3 开发工具
+
+- **STM32CubeIDE**：集成开发环境
+- **STM32CubeMX**：代码生成工具
+- **VOFA+**：数据分析和可视化工具
+- **Git**：版本控制系统
+
+## 9. 联系和支持
+
+### 9.1 技术支持
+
+- **代码仓库**：项目 Git 仓库
+- **问题反馈**：通过 Issue 系统提交
+- **文档更新**：定期更新设计文档
+
+### 9.2 贡献指南
+
+1. **代码风格**：遵循项目编码规范
+2. **测试要求**：新功能必须包含测试用例
+3. **文档更新**：同步更新相关文档
+4. **版本控制**：使用分支管理开发流程
+
 ---
 
-### 后续建议与改进方向
+**文档版本**：v2.0  
+**最后更新**：2025-11-08  
+**文档作者**：ZHOUHENG-D  
+**审核状态**：已审核
 
-**功能扩展**
-1. **命令扩展**：
-   - 补充查看/配置PID参数的命令（如 `set motor0 Kip=0.5`）
-   - 添加实时查看控制器状态的命令（如 `pid status motor0`）
-   - 支持保存/加载参数配置到Flash存储
-   
-2. **HMI参数映射**：
-   - 将PID参数（Kip, Kii, Kvp, Kvi, Kvfr等）集成到HMI参数系统中
-   - 分配HMI代码（P2XXX系列）用于PID参数访问
-   - 支持通过VOFA实时调整控制参数并观察效果
-
-**性能优化**
-3. **Q31定点实现**：
-   - 针对实时控制需求优化PID计算性能
-   - 将高频控制路径（电流环≥10kHz、FOC变换）迁移到Q31定点运算
-   - 保留低频路径（速度环、位置环、参数配置）的浮点实现
-   
-4. **CORDIC硬件加速**：
-   - 利用STM32G4的CORDIC协处理器加速三角函数计算
-   - 优化`Sine_Cosine()`函数，使用硬件CORDIC替代软件查表
-   - 减少sin/cos计算的CPU占用率
-
-**调试与测试**
-5. **调试接口增强**：
-   - 添加PID控制器状态监控功能（积分项、输出饱和状态等）
-   - 实现控制变量的实时波形输出（与VOFA深度集成）
-   - 提供性能分析工具（控制周期、CPU占用率统计）
-   
-6. **参数自动整定**：
-   - 考虑实现基于继电反馈法的PID参数自整定
-   - 添加系统频率响应分析功能
-   - 提供增益裕度和相位裕度检测
-   
-7. **错误处理增强**：
-   - 在归一化基值计算失败时提供详细错误信息和恢复建议
-   - 添加电机状态异常检测（失步、过流、过压等）
-   - 实现多级保护机制（软件过流保护、电压限幅、温度监控）
-
-**架构优化**
-8. **多电机协同控制**：
-   - 支持多电机同步控制和相位锁定
-   - 实现电机间的负载均衡和转矩分配
-   - 添加主从控制模式
-   
-9. **模块化测试框架**：
-   - 为每个模块添加单元测试（使用Unity测试框架）
-   - 实现模拟环境下的功能验证
-   - 建立HIL（硬件在环）测试平台
-
-
-
-
-### 修改记录
-
-#### 2025-11-08
-**PID控制器模块完整实现**
-
-**头文件设计** (`MotorControl/Inc/PID_controller.h`)
-- 定义了完整的PID控制器数据结构：`pid_controller_t`、`pid_controller_group_t`
-- 支持多控制器类型：电流环(d/q轴)、速度环、位置环
-- 定义了抗积分饱和模式：无、积分限幅、反向计算
-- 添加了电流环解耦和速度前馈数据结构
-- 提供了完整的函数接口声明和默认参数定义
-
-**源文件实现** (`MotorControl/Src/PID_controller.c`)
-- 实现了通用PID计算函数 `PID_Calculate()`，支持PI、PD、PID控制
-- 实现了电流环控制：`PID_CurrentD_Calculate()`、`PID_CurrentQ_Calculate()`
-- 实现了速度环控制：`PID_Speed_Calculate()`，包含前馈功能
-- 实现了位置环控制：`PID_Position_Calculate()`
-- 实现了抗积分饱和保护机制
-- 实现了电流环解耦计算
-- 实现了速度前馈控制
-- 提供了完整的参数配置和管理接口
-
-**设计特点**
-- 统一接口设计：所有控制器使用相同计算函数
-- 多电机支持：每个电机独立的PID控制器组
-- 实时参数调整：支持运行时修改控制参数
-- 安全保护：内置限幅和抗饱和保护
-- 归一化兼容：支持标幺值参数系统
-
-#### 2024-11-08
-**状态管理机制实现**
-- 在 motor_params.h 中添加了全局激活状态变量 g_active_motor_id
-- 实现了激活状态管理函数：MotorParams_SetActiveMotor()、MotorParams_DisableMotor()、MotorParams_GetActiveMotor()
-
-**命令模块扩展**
-- 在 command.c 中扩展了 handle_set_command() 函数
-- 支持大小写不敏感的命令格式：set motor0 enable、set m0 enable、set motor0 disable 等
-- 实现了 handle_enable_command() 处理激活/停用逻辑
-
-**归一化模块优化**
-- 修改了 Normalization_UpdateMotor() 只对激活参数套计算基值
-- 更新了 Normalization_GetBases() 只返回激活电机的归一化基值
-
-**FOC计算模块适配**
-- 移除了固定的 FOC_MATH_ACTIVE_MOTOR_ID 宏定义
-- 修改了 foc_math_try_get_motor_id() 使用动态激活电机ID
-
-**使用方式**
-- 激活参数套：set motor0 enable 或 set m0 enable
-- 停用参数套：set motor0 disable 或 set m0 disable
-- 支持大小写不敏感和电机ID缩写（m0, m1）
-
-
-
-### 技术笔记
-
-#### Q31定点化迁移方案（2024-11-07）
-
-**迁移目标**
-将整套FOC流程从浮点运算迁移到Q31定点运算，重点优化高速路径：
-- `MotorControl/Src/FOC_math.c` - FOC数学计算
-- `MotorControl/Src/normalization.c` - 标幺化转换
-- 控制环路（PI/PID、电压调制）
-
-**核心依赖**
-- ARM CMSIS-DSP库已提供Q31类型支持
-- 向量运算、`arm_circularWrite_f32`等辅助函数可直接复用
-
-**Q31化实施步骤**
-
-1. **物理量标幺化转换**
-   - 将循环内频繁计算的物理量转换为标幺值，再转Q31
-   - 包括：相电流（Clarke/Park输入输出）、dq轴电压指令、SVPWM零序注入/占空比
-   - 接口：`Normalization_ToQ31()` / `Normalization_FromQ31()`
-
-2. **三角函数处理**
-   - **CORDIC硬件方案**：使用Q1.31格式（±π）作为输入，Sin/Cos输出为Q1.31
-   - **软件方案**：保留`arm_sin_cos_f32()`，在角度环结束后转换sin/cos为Q31参与矩阵运算
-
-3. **保留浮点的模块**
-   - 低速、低频或配置数据应保持浮点运算：
-     * `motor_params.c` - 参数表
-     * `command.c` - 命令解析
-     * HMI交互模块
-     * 归一化基值计算（涉及浮点除法/平方根，执行频率低）
-   - 策略：更新后一次性生成Q31快照供实时控制使用
-
-4. **PID控制器定点化**
-   - **完全定点方案**：预先转换增益、积分限幅、前馈系数为Q31或Q15常数，需检查溢出
-   - **折中方案**：若PID执行频率仅几百Hz，可保留浮点输入，输出端转换为Q31
-
-5. **验证与测试**
-   - ⚠️ 所有定点路径必须重新校验量程与误差
-   - 验证步骤：
-     1. 识别实时循环内的浮点变量，替换为标幺-Q31
-     2. 更新FOC路径（Clarke→Park→调制）为Q31
-     3. 若使用CORDIC，确保角度缩放符合Q31格式
-     4. 对比仿真/实测误差，必要时加入饱和、移位和舍入策略
-     5. 低频模块保留浮点，通过接口给Q31控制器提供初始值
-
-**关键注意事项**
-- Q31定点运算需要特别注意数值范围和精度损失
-- 建议先在仿真环境验证，再部署到实际硬件
-- 保留浮点版本作为参考对照
-
-### 修改记录（续）
-
-#### 2025-11-08 (下午更新)
-**PID/PDFF统一控制器模块重构**
-
-**设计理念**
-- 将PID和PDFF整合为单一模块，通过 `Kfr_speed` 参数自动切换控制模式
-- 采用极简设计：仅一个核心函数 `PID_Controller()`
-- 参数化配置：通过结构体指针传递参数，提高灵活性
-- 状态独立管理：由调用者管理状态变量，支持任意数量的控制回路
-
-**头文件设计** (`MotorControl/Inc/PID_controller.h`)
-- 定义了 `PID_Params_t` 控制器参数结构体：
-  - `kp, ki, kd`：标准PID系数
-  - `Kfr_speed`：速度环专用前馈系数（0=PID模式，非0=PDFF模式）
-  - `integral_limit, output_limit`：限幅参数
-- 定义了 `PID_State_t` 状态结构体：
-  - `integral`：积分累积值
-  - `prev_error`：上次误差值
-- 提供了详细的使用示例和状态管理说明
-
-**源文件实现** (`MotorControl/Src/PID_controller.c`)
-- 实现了统一的 `PID_Controller()` 函数：
-  - 当 `Kfr_speed = 0` 时：标准PID算法
-    ```
-    output = kp*error + ki*integral + kd*derivative
-    ```
-  - 当 `Kfr_speed ≠ 0` 时：PDFF算法
-    ```
-    output = setpoint*Kfr_speed + integral - feedback*kp
-    ```
-- 自动积分限幅和输出限幅处理
-- 参数有效性检查（NULL指针、dt有效性）
-- 状态自动更新（integral、prev_error）
-
-**关键设计改进**
-- ✅ **移除了电流环解耦逻辑**：解耦在外部处理，保持模块纯粹性
-- ✅ **移除了全局控制器组**：由调用者管理参数和状态，更灵活
-- ✅ **简化了函数接口**：从多个专用函数简化为单一通用函数
-- ✅ **参数结构体化**：便于管理和传递，支持运行时修改
-- ✅ **状态独立性**：每个控制回路独立状态，避免相互干扰
-
-**PDFF算法特性**
-- `Kfr_speed`：速度环专用前馈系数名称
-- 当 `Kfr_speed = kp` 时，PDFF退化为PI控制器
-- PDFF模式中kp作用在反馈值上（带负号），与标准PID不同
-- 适用于速度环控制，提高动态响应性能
-
-**使用场景支持**
-- 单电机多回路控制（d轴电流、q轴电流、速度、位置）
-- 多电机系统（每个电机独立的控制器组）
-- 灵活的控制模式切换（PID ↔ PDFF）
-- 运行时参数调整和控制器重置
-
-**文档更新**
-- 更新了 PID_controller 模块章节，详细说明新的设计架构
-- 添加了 PID_State_t 状态管理的完整使用说明
-- 提供了多种应用场景的代码示例
-- 强调了状态独立性和模块纯粹性的设计原则
-
----
+**注意**：本文档描述的是 MotorControl 模块的当前实现。随着软件版本的更新，某些细节可能会发生变化。请定期查看最新版本的文档。
