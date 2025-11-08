@@ -940,24 +940,35 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 
 ## 8. 参考资料
 
+[电机控制，PI控制器，PID控制器和现场定向控制简介 TI 德州仪器](https://www.ti.com.cn/zh-cn/video/series/motor-control.html)  
+  
+
+[FOC基础与实战培训教程 Microchip微芯](https://www.bilibili.com/video/BV1bs42137t4/?spm_id_from=333.337.search-card.all.click&vd_source=f454dcc6f008ec7697db6318909b0b78)  
+
+[PID and PDFF Compensators for Motion Control](https://ieeexplore.ieee.org/document/377694/authors#authors)  
+
+[永磁无刷电机及其驱动技术](https://ebooks.cmpbook.com/detail?id=13097)  
+
+电机控制学习笔记 (QQ:986461300@qq.com) _捍卫你的梦想_ _那些年让你迷途的，不过是你自己不切实际的期盼罢了_  
+
+
 ### 8.1 技术文档
 
-- **STM32G4 参考手册**：硬件外设配置
-- **ARM CMSIS-DSP 文档**：数字信号处理库
-- **FOC 控制理论**：磁场定向控制原理
-- **SVPWM 调制技术**：空间矢量脉宽调制
+[Eclipse ThreadX documentation](https://github.com/eclipse-threadx/rtos-docs/blob/main/rtos-docs/threadx/index.md)  
+
+
 
 ### 8.2 相关标准
 
-- **IEC 61800-9**：电机驱动器接口标准
-- **ISO 13849**：安全相关控制系统
-- **GB/T 17626**：电磁兼容标准
 
 ### 8.3 开发工具
 
-- **STM32CubeIDE**：集成开发环境
+- **VScode**：集成开发环境
+- **CMake**：自动化建构系统
+- **STM32CubeCLT**：STM32开发工具集
 - **STM32CubeMX**：代码生成工具
-- **VOFA+**：数据分析和可视化工具
+- **Cortex Debug (OpenOCD)**：调试工具
+- **VOFA+**：串口调试助手
 - **Git**：版本控制系统
 
 ## 9. 联系和支持
@@ -966,20 +977,16 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 
 - **代码仓库**：项目 Git 仓库
 - **问题反馈**：通过 Issue 系统提交
-- **文档更新**：定期更新设计文档
-
-### 9.2 贡献指南
-
-1. **代码风格**：遵循项目编码规范
-2. **测试要求**：新功能必须包含测试用例
-3. **文档更新**：同步更新相关文档
-4. **版本控制**：使用分支管理开发流程
+- **文档更新**：不定期定期更新设计文档
 
 ---
 
 **文档版本**：v2.0  
 **最后更新**：2025-11-08  
-**文档作者**：ZHOUHENG-D  
-**审核状态**：已审核
+**文档作者**：AI、ZHOUHENG  
+**特别感谢**：
+    任何在网上分享电机控制相关的知识和经验的人
+    Linux do社区
+
 
 **注意**：本文档描述的是 MotorControl 模块的当前实现。随着软件版本的更新，某些细节可能会发生变化。请定期查看最新版本的文档。
