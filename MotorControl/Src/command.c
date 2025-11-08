@@ -304,6 +304,34 @@ static void handle_motor_command(char* args)
     print_available_motors();
 }
 
+static void handle_enable_command(uint8_t motor_id, bool enable)
+{
+    if (enable) {
+        MotorParams_SetActiveMotor(motor_id);
+        // 更新归一化基值
+        Normalization_UpdateMotor(motor_id);
+    } else {
+        MotorParams_DisableMotor(motor_id);
+    }
+}
+
+// 辅助函数：检查字符串是否以指定子串结尾（大小写不敏感）
+static bool ends_with_ignore_case(const char* str, const char* suffix)
+{
+    if (str == NULL || suffix == NULL) {
+        return false;
+    }
+    
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    
+    if (suffix_len > str_len) {
+        return false;
+    }
+    
+    return string_equals_ignore_case(str + str_len - suffix_len, suffix);
+}
+
 static void handle_set_command(char* args)
 {
     char* trimmed = skip_leading_whitespace(args);
@@ -313,6 +341,53 @@ static void handle_set_command(char* args)
     }
 
     rtrim_in_place(trimmed);
+
+    // 检查是否为enable/disable命令（大小写不敏感）
+    bool is_enable = false;
+    bool is_disable = false;
+    
+    // 使用大小写不敏感比较检查命令结尾
+    if (ends_with_ignore_case(trimmed, "enable")) {
+        is_enable = true;
+    } else if (ends_with_ignore_case(trimmed, "disable")) {
+        is_disable = true;
+    }
+    
+    if (is_enable || is_disable) {
+        // 处理enable/disable命令
+        size_t trimmed_len = strlen(trimmed);
+        size_t keyword_len = is_enable ? 6 : 7; // "enable" 或 "disable" 的长度
+        
+        // 提取电机ID部分（去掉enable/disable关键字）
+        char motor_id_part[COMMAND_BUFFER_SIZE];
+        if (trimmed_len > keyword_len) {
+            strncpy(motor_id_part, trimmed, trimmed_len - keyword_len);
+            motor_id_part[trimmed_len - keyword_len] = '\0';
+            
+            // 去除尾部空格
+            rtrim_in_place(motor_id_part);
+            
+            // 解析电机ID
+            uint8_t motor_index = 0U;
+            long raw_id = -1;
+            motor_id_parse_result_t parse_result = parse_motor_id_token(motor_id_part, &motor_index, &raw_id);
+            
+            if (parse_result == MOTOR_ID_PARSE_OK) {
+                handle_enable_command(motor_index, is_enable);
+                return;
+            } else if (parse_result == MOTOR_ID_PARSE_OUT_OF_RANGE) {
+                set_error("Motor %ld not found", raw_id);
+            } else {
+                set_error("Invalid motor ID in enable command");
+            }
+            print_available_motors();
+            return;
+        } else {
+            set_error("Missing motor ID in enable command");
+            print_available_motors();
+            return;
+        }
+    }
 
     char* equal_sign = strchr(trimmed, '=');
     if (equal_sign == NULL) {

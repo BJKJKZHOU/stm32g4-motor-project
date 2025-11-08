@@ -26,6 +26,13 @@ typedef struct {
 
 static normalization_motor_ctx_t s_norm_ctx[motors_number];
 
+static void clear_motor_ctx(normalization_motor_ctx_t *ctx)
+{
+    if (ctx != NULL) {
+        memset(ctx, 0, sizeof(*ctx));
+    }
+}
+
 static bool compute_bases(uint8_t motor_id, normalization_base_values_t *out)
 {
     const Motor_Params_t *params = &motor_params[motor_id];
@@ -81,6 +88,10 @@ static bool get_base_pair(uint8_t motor_id,
                           float *inv)
 {
     if (motor_id >= motors_number) {
+        return false;
+    }
+
+    if (!MotorParams_IsMotorEnabled(motor_id)) {
         return false;
     }
 
@@ -142,7 +153,7 @@ static bool get_base_pair(uint8_t motor_id,
 void Normalization_Init(void)
 {
     for (uint8_t i = 0; i < motors_number; ++i) {
-        Normalization_UpdateMotor(i);
+        clear_motor_ctx(&s_norm_ctx[i]);
     }
 }
 
@@ -152,18 +163,22 @@ void Normalization_UpdateMotor(uint8_t motor_id)
         return;
     }
 
-    normalization_motor_ctx_t *ctx = &s_norm_ctx[motor_id];
-    ctx->valid = compute_bases(motor_id, &ctx->base);
-    if (ctx->valid) {
-        compute_inverses(&ctx->base, &ctx->inv);
-    } else {
-        memset(ctx, 0, sizeof(*ctx));
+    // 只对激活的电机参数套更新归一化基值
+    if (MotorParams_IsMotorEnabled(motor_id)) {
+        normalization_motor_ctx_t *ctx = &s_norm_ctx[motor_id];
+        ctx->valid = compute_bases(motor_id, &ctx->base);
+        if (ctx->valid) {
+            compute_inverses(&ctx->base, &ctx->inv);
+        } else {
+            memset(ctx, 0, sizeof(*ctx));
+        }
     }
 }
 
 const normalization_base_values_t *Normalization_GetBases(uint8_t motor_id)
 {
-    if (motor_id >= motors_number || !s_norm_ctx[motor_id].valid) {
+    // 只返回激活电机的归一化基值
+    if (motor_id >= motors_number || !MotorParams_IsMotorEnabled(motor_id) || !s_norm_ctx[motor_id].valid) {
         return NULL;
     }
     return &s_norm_ctx[motor_id].base;

@@ -19,9 +19,7 @@
 #define PI 3.14159265358979323846f
 #endif
 
-#ifndef FOC_MATH_ACTIVE_MOTOR_ID
-#define FOC_MATH_ACTIVE_MOTOR_ID MOTOR_0
-#endif
+#include "motor_params.h"
 
 #define INV_SQRT3_F           (0.5773502691896258f)
 #define SQRT3_OVER_TWO_F      (0.8660254037844386f)
@@ -43,7 +41,13 @@ static float foc_math_saturate(float value, float min_value, float max_value)
 // 作用：验证并获取当前有效的电机ID
 static bool foc_math_try_get_motor_id(uint8_t *motor_id_out)
 {
-    const uint8_t motor_id = (uint8_t)FOC_MATH_ACTIVE_MOTOR_ID;
+    const uint8_t motor_id = MotorParams_GetActiveMotor();
+    
+    // 检查是否有激活的电机
+    if (!MotorParams_IsAnyMotorActive()) {
+        return false;
+    }
+    
     if (motor_id >= motors_number) {
         return false;
     }

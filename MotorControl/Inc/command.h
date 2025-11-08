@@ -17,8 +17,8 @@
      - set motor0 Rs = 0.5  // 设置电机0的Rs参数
      - set m1 Lq=0.003      // 设置电机1的Lq参数
      - set Flux = 2.5       // 设置默认电机0的Flux参数
-     - set motor0 run //11-8新增，设置电机为使用状态，后续计算使用此电机参数    
-
+     - set motor0 enable  //11-8新增，设置电机为使用状态，后续计算使用此电机参数    
+     - set motor0 disable
 
     特性：
      - 不区分大小写

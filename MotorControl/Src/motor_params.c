@@ -13,10 +13,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "usart.h"
 
 // 定义电机参数数组，暂定两个电机
 Motor_Params_t motor_params[motors_number];
 Motor_LimitParams_t motor_limit_params[motors_number];
+
+// 定义激活电机ID全局变量，初始值为无效值
+uint8_t g_active_motor_id = 0xFF;
 
 
 void MotorParams_Init(void)
@@ -205,4 +209,50 @@ void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value)
     
     // 如果两种方式都找不到参数，输出错误信息
     printf("错误：未找到参数 '%s'\n", param_name);
+}
+
+// 激活状态管理函数实现
+
+bool MotorParams_IsMotorEnabled(uint8_t motor_id)
+{
+    if (motor_id >= motors_number) {
+        return false;
+    }
+    return (g_active_motor_id == motor_id);
+}
+
+void MotorParams_SetActiveMotor(uint8_t motor_id)
+{
+    if (motor_id >= motors_number) {
+        printf("错误：无效的电机ID %d\n", motor_id);
+        return;
+    }
+    
+    g_active_motor_id = motor_id;
+    printf("OK 电机 %d 已激活\n", motor_id);
+}
+
+void MotorParams_DisableMotor(uint8_t motor_id)
+{
+    if (motor_id >= motors_number) {
+        printf("错误：无效的电机ID %d\n", motor_id);
+        return;
+    }
+    
+    if (g_active_motor_id == motor_id) {
+        g_active_motor_id = 0xFF;  // 设置为无效值
+        printf("OK 电机 %d 已停用\n", motor_id);
+    } else {
+        printf("警告：电机 %d 未处于激活状态\n", motor_id);
+    }
+}
+
+uint8_t MotorParams_GetActiveMotor(void)
+{
+    return g_active_motor_id;
+}
+
+bool MotorParams_IsAnyMotorActive(void)
+{
+    return (g_active_motor_id < motors_number);
 }

@@ -16,6 +16,7 @@
 #include "usart.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 #ifdef __cplusplus
@@ -80,15 +81,30 @@ typedef struct {
 } ParamDesc_t;
 
 
-// 声明全局电机参数数组 
-extern Motor_Params_t motor_params[motors_number];  
+// 声明全局电机参数数组
+extern Motor_Params_t motor_params[motors_number];
 extern Motor_LimitParams_t motor_limit_params[motors_number];
+
+// 激活状态管理
+extern uint8_t g_active_motor_id;  // 当前激活电机ID
+
+typedef enum {
+    MOTOR_STATE_DISABLED = 0,
+    MOTOR_STATE_ENABLED
+} motor_state_t;
 
 // 函数声明
 void MotorParams_Init(void);
 void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value); //设置电机参数
 
 void MotorParams_PrintAll(uint8_t motor_id); // 输出指定电机的所有参数和描述
+
+// 激活状态管理函数
+bool MotorParams_IsMotorEnabled(uint8_t motor_id);
+void MotorParams_SetActiveMotor(uint8_t motor_id);
+void MotorParams_DisableMotor(uint8_t motor_id);
+uint8_t MotorParams_GetActiveMotor(void);
+bool MotorParams_IsAnyMotorActive(void);
 
 #ifdef __cplusplus
 }
