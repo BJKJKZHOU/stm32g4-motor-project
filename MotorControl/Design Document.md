@@ -170,83 +170,165 @@ TIM1->CCR3 = Tcm3;
 ### PID_controller 模块
 
 **职责**
-- 实现FOC电机控制的PID控制器模块，支持电流环、速度环和位置环控制。
-- 提供抗积分饱和保护、电流环解耦、速度前馈等高级功能。
-- **多电机支持**：每个电机独立的PID控制器组，支持动态电机ID。
-- **统一接口**：所有PID控制器使用相同的计算函数，通过参数配置实现不同控制类型。
+- 实现统一的PID/PDFF控制器模块，支持电流环、速度环和位置环控制
+- **极简设计**：单一核心函数 `PID_Controller()`，通过参数自动切换PID或PDFF模式
+- **参数化配置**：控制参数通过结构体指针传递，灵活性高
+- **状态独立管理**：每个控制回路的状态由调用者管理，支持多电机多回路应用
 
 **数据结构**
-- `pid_controller_t`：通用PID控制器结构体，包含控制参数、状态变量、限幅参数等
-- `pid_controller_group_t`：PID控制器组，每个电机包含d轴电流环、q轴电流环、速度环、位置环
-- `current_decoupling_t`：电流环解耦参数（ws, Ld, Lq, Flux）
-- `speed_feed_forward_t`：速度前馈参数（增益、阈值）
-
-**关键实现**
-- **核心PID算法**：`PID_Calculate()` - 通用PID计算函数，支持PI、PD、PID控制
-- **电流环控制**：
-  - `PID_CurrentD_Calculate()` - d轴电流环PI控制器 + 解耦
-  - `PID_CurrentQ_Calculate()` - q轴电流环PI控制器 + 解耦
-- **速度环控制**：`PID_Speed_Calculate()` - 速度环PI控制器 + 前馈
-- **位置环控制**：`PID_Position_Calculate()` - 位置环PD控制器
-
-**高级功能**
-- **抗积分饱和保护**：
-  - 积分限幅模式：防止积分项过大
-  - 反向计算模式：智能抗积分饱和
-  - 可配置抗饱和参数
-- **电流环解耦**：
-  - d轴解耦：`-ws × Lq × iq_feedback`
-  - q轴解耦：`ws × (Ld × id_feedback + Flux)`
-  - 支持动态参数更新和使能控制
-- **速度前馈控制**：
-  - 直接电压前馈：`V_ff = Ke × ω`
-  - 低速禁用功能：可设置启用阈值
-  - 可调前馈增益
-
-**参数配置接口**
-- `PID_SetParameters(motor_id, type, kp, ki, kd)` - 设置Kp, Ki, Kd参数
-- `PID_SetOutputLimit(motor_id, type, limit)` - 设置输出限幅
-- `PID_SetIntegralLimit(motor_id, type, limit)` - 设置积分限幅
-- `PID_SetAntiWindup(motor_id, type, mode, back_calc_gain)` - 配置抗积分饱和模式
-- `PID_SetDecoupling(motor_id, ws, Ld, Lq, Flux)` - 设置电流环解耦参数
-- `PID_SetSpeedFeedForward(motor_id, feed_forward_gain, omega_threshold)` - 设置速度前馈参数
-
-**控制器管理接口**
-- `PID_ResetController(motor_id, type)` - 重置控制器状态
-- `PID_EnableController(motor_id, type, enable)` - 启用/禁用控制器
-- `PID_GetOutput(motor_id, type)` - 获取控制器输出值
-- `PID_GetParameters(motor_id, type, kp, ki, kd)` - 获取控制器参数
-- `PID_SetSampleTime(motor_id, dt)` - 设置采样时间
-
-**高级功能使能接口**
-- `PID_EnableDecoupling(motor_id, enable)` - 启用/禁用电流环解耦
-- `PID_EnableSpeedFeedForward(motor_id, enable)` - 启用/禁用速度前馈
-
-**使用方式**
 ```c
-// 初始化
-PID_Init(MOTOR_0);
+// 控制器参数结构体
+typedef struct {
+    float kp;                  // 比例系数
+    float ki;                  // 积分系数
+    float kd;                  // 微分系数（电流环和速度环暂不使用）
+    float Kfr_speed;           // 速度环前馈系数（0=PID模式，非0=PDFF模式）
+    float integral_limit;      // 积分限幅
+    float output_limit;        // 输出限幅
+} PID_Params_t;
 
-// 设置控制参数
-PID_SetParameters(MOTOR_0, PID_TYPE_CURRENT_D, 0.5f, 10.0f, 0.0f);
-PID_SetParameters(MOTOR_0, PID_TYPE_SPEED, 0.1f, 1.0f, 0.0f);
-
-// 控制计算
-float ud = PID_CurrentD_Calculate(MOTOR_0, id_ref, id_feedback, iq_feedback);
-float uq = PID_CurrentQ_Calculate(MOTOR_0, iq_ref, iq_feedback, id_feedback);
-float iq_ref = PID_Speed_Calculate(MOTOR_0, speed_ref, speed_feedback);
-
-// 启用高级功能
-PID_EnableDecoupling(MOTOR_0, true);
-PID_EnableSpeedFeedForward(MOTOR_0, true);
+// 控制器状态结构体
+typedef struct {
+    float integral;            // 积分累积
+    float prev_error;          // 上次误差（用于微分项）
+} PID_State_t;
 ```
 
+**核心算法**
+
+**1. PID模式** (当 `Kfr_speed = 0` 时)
+```
+error = setpoint - feedback
+proportional = kp * error
+integral += ki * error * dt （带积分限幅）
+derivative = kd * (error - prev_error) / dt
+output = proportional + integral + derivative （带输出限幅）
+```
+
+**2. PDFF模式** (当 `Kfr_speed ≠ 0` 时)
+```
+前馈项: feedforward = setpoint * Kfr_speed
+积分项: integral += (setpoint - feedback) * ki * dt （带积分限幅）
+反馈项: feedback_term = -(kp * feedback)
+output = feedforward + integral + feedback_term （带输出限幅）
+```
+- **特殊性质**：当 `Kfr_speed = kp` 时，PDFF退化为PI控制器
+- **注意**：PDFF模式中kp作用在反馈值上（负号），与标准PID不同
+
+**核心API**
+```c
+float PID_Controller(float setpoint, float feedback, float dt,
+                    PID_Params_t *params, PID_State_t *state);
+```
+
+**使用示例**
+
+**示例1：电流环PI控制**
+```c
+PID_Params_t current_params = {
+    .kp = 0.5f,
+    .ki = 10.0f,
+    .kd = 0.0f,
+    .Kfr_speed = 0.0f,              // 0表示使用PID模式
+    .integral_limit = 0.5f,
+    .output_limit = 1.0f
+};
+PID_State_t current_state = {0};    // 状态变量，保存积分和误差
+
+// 在控制周期中循环调用
+float vd = PID_Controller(id_ref, id_fb, 0.0001f, &current_params, &current_state);
+```
+
+**示例2：速度环PDFF控制**
+```c
+PID_Params_t speed_pdff_params = {
+    .kp = 0.1f,                     // 比例系数（作用在反馈上）
+    .ki = 1.0f,                     // 积分系数
+    .kd = 0.0f,
+    .Kfr_speed = 0.1f,              // 前馈系数（非0表示使用PDFF模式）
+    .integral_limit = 0.5f,
+    .output_limit = 1.0f
+};
+PID_State_t speed_pdff_state = {0};
+
+float iq_ref = PID_Controller(speed_ref, speed_fb, 0.001f, &speed_pdff_params, &speed_pdff_state);
+```
+
+**示例3：多电机多回路应用**
+```c
+typedef struct {
+    PID_Params_t id_params;
+    PID_State_t  id_state;
+    PID_Params_t iq_params;
+    PID_State_t  iq_state;
+    PID_Params_t speed_params;
+    PID_State_t  speed_state;
+} Motor_Controller_t;
+
+Motor_Controller_t motor[2];  // 两个电机
+
+// 初始化
+motor[0].id_state = (PID_State_t){0};
+motor[0].iq_state = (PID_State_t){0};
+motor[0].speed_state = (PID_State_t){0};
+
+// 使用
+float vd = PID_Controller(0, id_fb, dt, &motor[0].id_params, &motor[0].id_state);
+```
+
+**PID_State_t 状态管理说明**
+
+**为什么需要状态变量？**
+- `integral`：积分项需要累积历史误差，必须在多次调用之间保持
+- `prev_error`：用于计算微分项（误差变化率），需要记录上一次的值
+
+**关键使用要点**
+1. ✅ **每个控制回路必须有独立的 PID_State_t**
+   ```c
+   PID_State_t id_state = {0};   // ✅ d轴独立状态
+   PID_State_t iq_state = {0};   // ✅ q轴独立状态
+   ```
+
+2. ✅ **初始化时必须清零**
+   ```c
+   PID_State_t state = {0};  // 初始化时清零
+   ```
+
+3. ✅ **函数会自动更新状态，无需手动操作**
+   ```c
+   // 第一次调用
+   float output1 = PID_Controller(10.0f, 0.0f, 0.001f, &params, &state);
+   // 函数内部自动更新 state.integral 和 state.prev_error
+   
+   // 第二次调用（下一个控制周期）
+   float output2 = PID_Controller(10.0f, 2.0f, 0.001f, &params, &state);
+   // 会使用上次更新的 state 值，积分继续累积
+   ```
+
+4. ✅ **重置控制器**
+   ```c
+   // 当需要重置时（例如：故障恢复、模式切换）
+   state.integral = 0.0f;
+   state.prev_error = 0.0f;
+   // 或简洁写法
+   state = (PID_State_t){0};
+   ```
+
+5. ❌ **不能多个控制器共享同一个状态变量**
+   ```c
+   // ❌ 错误：多个控制器共享状态
+   PID_State_t shared_state = {0};
+   float vd = PID_Controller(id_ref, id_fb, dt, &id_params, &shared_state);
+   float vq = PID_Controller(iq_ref, iq_fb, dt, &iq_params, &shared_state);  // 会干扰vd的状态
+   ```
+
 **设计特点**
-- **统一接口设计**：通过设置kd=0实现PI控制，kp=0实现I控制
-- **归一化兼容**：支持标幺值参数系统
-- **实时参数调整**：支持运行时修改控制参数
-- **安全保护机制**：内置限幅和抗饱和保护
-- **模块化架构**：便于扩展和维护
+- **极简接口**：单一函数处理所有控制类型
+- **模式自动切换**：通过 `Kfr_speed` 参数自动选择PID或PDFF算法
+- **灵活的参数管理**：参数通过结构体指针传递，支持运行时修改
+- **状态独立性**：状态由调用者管理，支持任意数量的控制回路
+- **电流环解耦在外部处理**：保持模块纯粹性，解耦逻辑由应用层实现
+- **自动限幅保护**：内置积分限幅和输出限幅，确保系统稳定
 
 ---
 
@@ -457,3 +539,65 @@ int main(void)
 - Q31定点运算需要特别注意数值范围和精度损失
 - 建议先在仿真环境验证，再部署到实际硬件
 - 保留浮点版本作为参考对照
+
+### 修改记录（续）
+
+#### 2025-11-08 (下午更新)
+**PID/PDFF统一控制器模块重构**
+
+**设计理念**
+- 将PID和PDFF整合为单一模块，通过 `Kfr_speed` 参数自动切换控制模式
+- 采用极简设计：仅一个核心函数 `PID_Controller()`
+- 参数化配置：通过结构体指针传递参数，提高灵活性
+- 状态独立管理：由调用者管理状态变量，支持任意数量的控制回路
+
+**头文件设计** (`MotorControl/Inc/PID_controller.h`)
+- 定义了 `PID_Params_t` 控制器参数结构体：
+  - `kp, ki, kd`：标准PID系数
+  - `Kfr_speed`：速度环专用前馈系数（0=PID模式，非0=PDFF模式）
+  - `integral_limit, output_limit`：限幅参数
+- 定义了 `PID_State_t` 状态结构体：
+  - `integral`：积分累积值
+  - `prev_error`：上次误差值
+- 提供了详细的使用示例和状态管理说明
+
+**源文件实现** (`MotorControl/Src/PID_controller.c`)
+- 实现了统一的 `PID_Controller()` 函数：
+  - 当 `Kfr_speed = 0` 时：标准PID算法
+    ```
+    output = kp*error + ki*integral + kd*derivative
+    ```
+  - 当 `Kfr_speed ≠ 0` 时：PDFF算法
+    ```
+    output = setpoint*Kfr_speed + integral - feedback*kp
+    ```
+- 自动积分限幅和输出限幅处理
+- 参数有效性检查（NULL指针、dt有效性）
+- 状态自动更新（integral、prev_error）
+
+**关键设计改进**
+- ✅ **移除了电流环解耦逻辑**：解耦在外部处理，保持模块纯粹性
+- ✅ **移除了全局控制器组**：由调用者管理参数和状态，更灵活
+- ✅ **简化了函数接口**：从多个专用函数简化为单一通用函数
+- ✅ **参数结构体化**：便于管理和传递，支持运行时修改
+- ✅ **状态独立性**：每个控制回路独立状态，避免相互干扰
+
+**PDFF算法特性**
+- `Kfr_speed`：速度环专用前馈系数名称
+- 当 `Kfr_speed = kp` 时，PDFF退化为PI控制器
+- PDFF模式中kp作用在反馈值上（带负号），与标准PID不同
+- 适用于速度环控制，提高动态响应性能
+
+**使用场景支持**
+- 单电机多回路控制（d轴电流、q轴电流、速度、位置）
+- 多电机系统（每个电机独立的控制器组）
+- 灵活的控制模式切换（PID ↔ PDFF）
+- 运行时参数调整和控制器重置
+
+**文档更新**
+- 更新了 PID_controller 模块章节，详细说明新的设计架构
+- 添加了 PID_State_t 状态管理的完整使用说明
+- 提供了多种应用场景的代码示例
+- 强调了状态独立性和模块纯粹性的设计原则
+
+---
