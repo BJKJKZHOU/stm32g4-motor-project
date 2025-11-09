@@ -153,6 +153,28 @@ void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31);
 bool Park_TransformQ31(q31_t I_alpha_q31, q31_t I_beta_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
                        q31_t *I_d_q31, q31_t *I_q_q31);
 
+                    
+/*  低通滤波器模块 - 支持Hz和rad/s频率单位，单位在内部处理
+    unit: true=Hz, false=rad/s
+    sample_time: 采样时间，采样时间 = 1/采样频率，
+    cutoff_freq: 截止频率
+    此滤波器的执行频率就是采样频率，50微秒调用一次的化，采样时间为0.00005s。
+
+*/
+
+/* 低通滤波器结构体 - 支持多个独立滤波器实例 */
+typedef struct {
+    float state;  /* 滤波器状态变量 y[n-1] */
+} LPF_Float_t;
+
+typedef struct {
+    q31_t state;  /* Q31格式滤波器状态变量 */
+} LPF_Q31_t;
+
+float LPF_Filter(LPF_Float_t *filter, float input, float cutoff_freq, float sample_time, bool unit);
+q31_t LPF_FilterQ31(LPF_Q31_t *filter, q31_t input, float cutoff_freq, float sample_time, bool unit);
+
+
 
 
 
