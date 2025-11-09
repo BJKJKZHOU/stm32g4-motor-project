@@ -10,9 +10,11 @@
 
 #include "FOC_math.h"
 
-
 #include <math.h>
 #include <stdbool.h>
+#include <limits.h>
+
+#include "cordic.h"
 
 #ifndef PI
 #define PI 3.14159265358979323846f
@@ -23,6 +25,98 @@
 #define SQRT3_OVER_TWO_F      (0.8660254037844386f)
 #define TWO_PI_F              (2.0f * PI)
 
+#define Q31_SCALE_F           (2147483648.0f)
+#define Q31_MAX               ((q31_t)0x7FFFFFFF)
+#define Q31_MIN               ((q31_t)0x80000000)
+#define Q31_HALF              ((q31_t)0x40000000)
+#define Q31_NEG_HALF          ((q31_t)0xC0000000)
+#define INV_SQRT3_Q31         ((q31_t)0x49E69D16)
+#define SQRT3_OVER_TWO_Q31    ((q31_t)0x6ED9EBA1)
+
+
+static inline q31_t foc_math_q31_saturate_int64(int64_t value)
+{
+    if (value > (int64_t)INT32_MAX) {
+        return (q31_t)INT32_MAX;
+    }
+    if (value < (int64_t)INT32_MIN) {
+        return (q31_t)INT32_MIN;
+    }
+    return (q31_t)value;
+}
+
+static q31_t foc_math_q31_add(q31_t a, q31_t b)
+{
+    int64_t sum = (int64_t)a + (int64_t)b;
+    return foc_math_q31_saturate_int64(sum);
+}
+
+static q31_t foc_math_q31_sub(q31_t a, q31_t b)
+{
+    int64_t diff = (int64_t)a - (int64_t)b;
+    return foc_math_q31_saturate_int64(diff);
+}
+
+static q31_t foc_math_q31_mul(q31_t a, q31_t b)
+{
+    int64_t product = (int64_t)a * (int64_t)b;
+    product >>= 31;
+    return foc_math_q31_saturate_int64(product);
+}
+
+static q31_t foc_math_q31_clamp(q31_t value, q31_t min_value, q31_t max_value)
+{
+    if (value > max_value) {
+        return max_value;
+    }
+    if (value < min_value) {
+        return min_value;
+    }
+    return value;
+}
+
+static inline float foc_math_q31_to_float(q31_t value)
+{
+    return (float)value / Q31_SCALE_F;
+}
+
+static q31_t foc_math_q31_from_float(float value)
+{
+    if (!isfinite(value)) {
+        return 0;
+    }
+    if (value >= (Q31_MAX - 1) / Q31_SCALE_F) {
+        return Q31_MAX;
+    }
+    if (value <= -1.0f) {
+        return Q31_MIN;
+    }
+    float scaled = value * Q31_SCALE_F;
+    if (scaled > (float)INT32_MAX) {
+        return Q31_MAX;
+    }
+    if (scaled < (float)INT32_MIN) {
+        return Q31_MIN;
+    }
+    return (q31_t)scaled;
+}
+
+static bool foc_math_q31_is_unit(q31_t value)
+{
+    return value <= Q31_MAX && value >= Q31_MIN;
+}
+
+static inline q31_t foc_math_q31_max3(q31_t a, q31_t b, q31_t c)
+{
+    q31_t max_ab = (a > b) ? a : b;
+    return (max_ab > c) ? max_ab : c;
+}
+
+static inline q31_t foc_math_q31_min3(q31_t a, q31_t b, q31_t c)
+{
+    q31_t min_ab = (a < b) ? a : b;
+    return (min_ab < c) ? min_ab : c;
+}
 
 // 作用：数值饱和限制，确保值在指定范围内 (Value saturation: ensures value is within specified range)
 static float foc_math_saturate(float value, float min_value, float max_value)
@@ -96,8 +190,39 @@ void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float c
         return;
     }
 
+    /* 使用CORDIC优化的逆Park变换：直接使用传入的正弦余弦值进行旋转矩阵计算 */
+    /* 逆Park变换矩阵：[U_alpha] = [cosθ -sinθ][U_d] */
+    /*                 [U_beta ]   [sinθ  cosθ][U_q] */
+    
+    /* 正弦余弦值来自CORDIC硬件加速，这里直接进行矩阵乘法 */
     *U_alpha_pu = U_d_pu * cos_theta - U_q_pu * sin_theta;
     *U_beta_pu  = U_d_pu * sin_theta + U_q_pu * cos_theta;
+}
+
+bool Inverse_Park_TransformQ31(q31_t U_d_q31, q31_t U_q_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
+                               q31_t *U_alpha_q31, q31_t *U_beta_q31)
+{
+    if (U_alpha_q31 == NULL || U_beta_q31 == NULL) {
+        return false;
+    }
+
+    if (!foc_math_q31_is_unit(sin_theta_q31) || !foc_math_q31_is_unit(cos_theta_q31)) {
+        *U_alpha_q31 = 0;
+        *U_beta_q31 = 0;
+        return false;
+    }
+
+    /* 使用CORDIC优化的逆Park变换Q31版本 */
+    /* 正弦余弦值来自CORDIC硬件加速，这里直接进行Q31矩阵乘法 */
+    q31_t term_d_cos = foc_math_q31_mul(U_d_q31, cos_theta_q31);
+    q31_t term_q_sin = foc_math_q31_mul(U_q_q31, sin_theta_q31);
+    q31_t term_d_sin = foc_math_q31_mul(U_d_q31, sin_theta_q31);
+    q31_t term_q_cos = foc_math_q31_mul(U_q_q31, cos_theta_q31);
+
+    *U_alpha_q31 = foc_math_q31_sub(term_d_cos, term_q_sin);
+    *U_beta_q31  = foc_math_q31_add(term_d_sin, term_q_cos);
+
+    return true;
 }
 
 void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
@@ -131,6 +256,48 @@ void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, ui
     *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
 }
 
+bool SVPWM_Q31(q31_t U_alpha_q31, q31_t U_beta_q31, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
+{
+    if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
+        return false;
+    }
+
+    if (!foc_math_q31_is_unit(U_alpha_q31) || !foc_math_q31_is_unit(U_beta_q31)) {
+        *Tcm1 = *Tcm2 = *Tcm3 = ARR_PERIOD / 2;
+        return false;
+    }
+
+    const q31_t U_a = U_alpha_q31;
+    const q31_t half_alpha = foc_math_q31_mul(Q31_NEG_HALF, U_alpha_q31);
+    const q31_t beta_term = foc_math_q31_mul(SQRT3_OVER_TWO_Q31, U_beta_q31);
+
+    const q31_t U_b = foc_math_q31_add(half_alpha, beta_term);
+    const q31_t U_c = foc_math_q31_sub(half_alpha, beta_term);
+
+    const q31_t max_v = foc_math_q31_max3(U_a, U_b, U_c);
+    const q31_t min_v = foc_math_q31_min3(U_a, U_b, U_c);
+    const q31_t sum_extremes = foc_math_q31_add(max_v, min_v);
+    const q31_t U_zero = foc_math_q31_mul(sum_extremes, Q31_NEG_HALF);
+
+    const q31_t Ua_injected = foc_math_q31_add(U_a, U_zero);
+    const q31_t Ub_injected = foc_math_q31_add(U_b, U_zero);
+    const q31_t Uc_injected = foc_math_q31_add(U_c, U_zero);
+
+    q31_t Tcm1_q31 = foc_math_q31_add(Ua_injected, Q31_HALF);
+    q31_t Tcm2_q31 = foc_math_q31_add(Ub_injected, Q31_HALF);
+    q31_t Tcm3_q31 = foc_math_q31_add(Uc_injected, Q31_HALF);
+
+    Tcm1_q31 = foc_math_q31_clamp(Tcm1_q31, 0, Q31_MAX);
+    Tcm2_q31 = foc_math_q31_clamp(Tcm2_q31, 0, Q31_MAX);
+    Tcm3_q31 = foc_math_q31_clamp(Tcm3_q31, 0, Q31_MAX);
+
+    *Tcm1 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm1_q31));
+    *Tcm2 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm2_q31));
+    *Tcm3 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm3_q31));
+
+    return true;
+}
+
 bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu)
 {
     if (I_alpha_pu == NULL || I_beta_pu == NULL) {
@@ -148,6 +315,27 @@ bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta
     return true;
 }
 
+bool Clarke_TransformQ31(q31_t ia_q31, q31_t ib_q31, q31_t *I_alpha_q31, q31_t *I_beta_q31)
+{
+    if (I_alpha_q31 == NULL || I_beta_q31 == NULL) {
+        return false;
+    }
+
+    if (!foc_math_q31_is_unit(ia_q31) || !foc_math_q31_is_unit(ib_q31)) {
+        *I_alpha_q31 = 0;
+        *I_beta_q31 = 0;
+        return false;
+    }
+
+    const q31_t two_ib = foc_math_q31_add(ib_q31, ib_q31);
+    const q31_t sum = foc_math_q31_add(ia_q31, two_ib);
+
+    *I_alpha_q31 = ia_q31;
+    *I_beta_q31  = foc_math_q31_mul(sum, INV_SQRT3_Q31);
+
+    return true;
+}
+
 
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
 {
@@ -156,7 +344,81 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
     }
 
     const float wrapped = foc_math_wrap_angle(theta_e);
-    arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+    
+    /* 配置CORDIC用于余弦计算 */
+    CORDIC_ConfigTypeDef sConfig = {0};
+    sConfig.Function = CORDIC_FUNCTION_COSINE;      // 余弦函数
+    sConfig.Scale = CORDIC_SCALE_0;                 // 无缩放
+    sConfig.InSize = CORDIC_INSIZE_32BITS;          // 32位输入
+    sConfig.OutSize = CORDIC_OUTSIZE_32BITS;        // 32位输出
+    sConfig.NbWrite = CORDIC_NBWRITE_1;             // 1个输入
+    sConfig.NbRead = CORDIC_NBREAD_2;               // 2个输出(cos, sin)
+    sConfig.Precision = CORDIC_PRECISION_6CYCLES;   // 适中精度，适合电机控制
+    
+    if (HAL_CORDIC_Configure(&hcordic, &sConfig) != HAL_OK) {
+        // 配置失败，回退到软件实现
+        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+        return;
+    }
+    
+    /* 将角度转换为Q1.31格式：[-π, π] → [-2^31, 2^31-1] */
+    int32_t angle_q31 = (int32_t)(wrapped * 2147483648.0f / PI);
+    int32_t results[2];
+    
+    /* 调用CORDIC计算 */
+    if (HAL_CORDIC_Calculate(&hcordic, &angle_q31, results, 1, 20) == HAL_OK) {
+        /* 转换Q1.31结果回浮点数 */
+        *cos_theta_e = (float)results[0] / 2147483648.0f;
+        *sin_theta_e = (float)results[1] / 2147483648.0f;
+    } else {
+        // 计算失败，回退到软件实现
+        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+    }
+}
+
+void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31)
+{
+    if (sin_theta_q31 == NULL || cos_theta_q31 == NULL) {
+        return;
+    }
+
+    const float wrapped = foc_math_wrap_angle(theta_e);
+    
+    /* 配置CORDIC用于余弦计算 */
+    CORDIC_ConfigTypeDef sConfig = {0};
+    sConfig.Function = CORDIC_FUNCTION_COSINE;      // 余弦函数
+    sConfig.Scale = CORDIC_SCALE_0;                 // 无缩放
+    sConfig.InSize = CORDIC_INSIZE_32BITS;          // 32位输入
+    sConfig.OutSize = CORDIC_OUTSIZE_32BITS;        // 32位输出
+    sConfig.NbWrite = CORDIC_NBWRITE_1;             // 1个输入
+    sConfig.NbRead = CORDIC_NBREAD_2;               // 2个输出(cos, sin)
+    sConfig.Precision = CORDIC_PRECISION_6CYCLES;   // 适中精度，适合电机控制
+    
+    if (HAL_CORDIC_Configure(&hcordic, &sConfig) != HAL_OK) {
+        // 配置失败，回退到软件实现
+        float sin_val, cos_val;
+        arm_sin_cos_f32(wrapped, &sin_val, &cos_val);
+        *sin_theta_q31 = foc_math_q31_from_float(sin_val);
+        *cos_theta_q31 = foc_math_q31_from_float(cos_val);
+        return;
+    }
+    
+    /* 将角度转换为Q1.31格式：[-π, π] → [-2^31, 2^31-1] */
+    int32_t angle_q31 = (int32_t)(wrapped * 2147483648.0f / PI);
+    int32_t results[2];
+    
+    /* 调用CORDIC计算 */
+    if (HAL_CORDIC_Calculate(&hcordic, &angle_q31, results, 1, 20) == HAL_OK) {
+        /* 直接使用Q1.31格式结果 */
+        *cos_theta_q31 = (q31_t)results[0];
+        *sin_theta_q31 = (q31_t)results[1];
+    } else {
+        // 计算失败，回退到软件实现
+        float sin_val, cos_val;
+        arm_sin_cos_f32(wrapped, &sin_val, &cos_val);
+        *sin_theta_q31 = foc_math_q31_from_float(sin_val);
+        *cos_theta_q31 = foc_math_q31_from_float(cos_val);
+    }
 }
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q)
@@ -179,6 +441,38 @@ void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float co
         return;
     }
 
+    /* 使用CORDIC优化的Park变换：直接使用传入的正弦余弦值进行旋转矩阵计算 */
+    /* Park变换矩阵：[I_d]   [cosθ  sinθ][I_alpha] */
+    /*               [I_q] = [-sinθ cosθ][I_beta ]  */
+    
+    /* 由于CORDIC主要用于三角函数计算，而Park变换本质是2×2矩阵乘法 */
+    /* 这里我们保持原有的矩阵乘法实现，但正弦余弦值可以来自CORDIC */
     *I_d = I_alpha_pu * cos_theta + I_beta_pu * sin_theta;
     *I_q = -I_alpha_pu * sin_theta + I_beta_pu * cos_theta;
+}
+
+bool Park_TransformQ31(q31_t I_alpha_q31, q31_t I_beta_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
+                       q31_t *I_d_q31, q31_t *I_q_q31)
+{
+    if (I_d_q31 == NULL || I_q_q31 == NULL) {
+        return false;
+    }
+
+    if (!foc_math_q31_is_unit(sin_theta_q31) || !foc_math_q31_is_unit(cos_theta_q31)) {
+        *I_d_q31 = 0;
+        *I_q_q31 = 0;
+        return false;
+    }
+
+    /* 使用CORDIC优化的Park变换Q31版本 */
+    /* 正弦余弦值来自CORDIC硬件加速，这里直接进行Q31矩阵乘法 */
+    const q31_t term_alpha_cos = foc_math_q31_mul(I_alpha_q31, cos_theta_q31);
+    const q31_t term_beta_sin  = foc_math_q31_mul(I_beta_q31, sin_theta_q31);
+    const q31_t term_alpha_sin = foc_math_q31_mul(I_alpha_q31, sin_theta_q31);
+    const q31_t term_beta_cos  = foc_math_q31_mul(I_beta_q31, cos_theta_q31);
+
+    *I_d_q31 = foc_math_q31_add(term_alpha_cos, term_beta_sin);
+    *I_q_q31 = foc_math_q31_sub(term_beta_cos, term_alpha_sin);
+
+    return true;
 }

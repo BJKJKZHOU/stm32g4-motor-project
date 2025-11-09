@@ -26,7 +26,8 @@
         "stm32g4xx_hal_conf.h": "c",
         "gpio.h": "c",
         "cordic.h": "c",
-        "pid_controller.h": "c"
+        "pid_controller.h": "c",
+        "foc_math.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

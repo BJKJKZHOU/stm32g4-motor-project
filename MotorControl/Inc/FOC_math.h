@@ -85,7 +85,7 @@
 
 
 
-    Clarke_Transform 克拉克变换
+    Clarke_Transform 克拉克变换(等幅值变换)
         Input : 三相 (abc) 中的两个电流信号，自动计算第三个信号
                 ia + ib + ic = 0 => ic =0 - ia - ib
                 基尔霍夫电流定律，电机三相电流和为 0.
@@ -139,6 +139,19 @@ bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);
+
+/* Q31 fixed-point (1.31) variants */
+bool Inverse_Park_TransformQ31(q31_t U_d_q31, q31_t U_q_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
+                               q31_t *U_alpha_q31, q31_t *U_beta_q31);
+
+bool SVPWM_Q31(q31_t U_alpha_q31, q31_t U_beta_q31, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
+
+bool Clarke_TransformQ31(q31_t ia_q31, q31_t ib_q31, q31_t *I_alpha_q31, q31_t *I_beta_q31);
+
+void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31);
+
+bool Park_TransformQ31(q31_t I_alpha_q31, q31_t I_beta_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
+                       q31_t *I_d_q31, q31_t *I_q_q31);
 
 
 
