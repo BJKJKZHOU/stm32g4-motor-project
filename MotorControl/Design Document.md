@@ -257,71 +257,100 @@ void UART_RxCallback(char* received_data) {
 
 #### 2.4.1 功能职责
 - 实现 FOC 控制所需的数学变换
-- 支持标幺值计算，确保数值稳定性
-- 集成归一化系统，自动使用激活电机参数
-- 提供完整的 SVPWM 调制算法
+- 基于预标准化标幺值进行计算，确保数值稳定性和一致性
+- 提供完整的输入验证和错误处理机制
+- 实现完整的 SVPWM 调制算法，直接输出定时器计数值
+- 支持角度路径的原始弧度处理和自动包装
 
-#### 2.4.2 数据流程
+#### 2.4.2 数据格式约定
 
+**数据流契约**：
+- **相电流**：必须在调用 Clarke_Transform 之前转换为标幺值
+- **电角度**：以弧度(float)形式提供给 Sine_Cosine；函数自动包装到 [-π, π] 范围
+- **电压路径**：Park/逆Park变换、SVPWM 和下游 PWM 映射都基于标幺值操作
+
+**数据流程**：
 ```
-三相电流 → Clarke变换 → αβ坐标系 → Park变换 → dq坐标系
-   ↑                                                      ↓
-PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 电流环控制
+物理电流 → 标幺转换 → Clarke变换 → αβ坐标系 → Park变换 → dq坐标系
+    ↑                                                       ↓
+PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 电流环控制 ← 标幺值
 ```
 
 #### 2.4.3 核心 API
 
 | 函数名 | 功能描述 | 参数 | 返回值 |
 |--------|----------|------|--------|
-| [`Clarke_Transform()`](MotorControl/Src/FOC_math.c:159) | Clarke 变换 (abc→αβ) | ia, ib, I_alpha*, I_beta* | void |
-| [`Park_Transform()`](MotorControl/Src/FOC_math.c:182) | Park 变换 (αβ→dq) | I_alpha, I_beta, sinθ, cosθ, I_d*, I_q* | void |
-| [`Inverse_Park_Transform()`](MotorControl/Src/FOC_math.c:117) | 逆 Park 变换 (dq→αβ) | U_d, U_q, sinθ, cosθ, U_alpha*, U_beta* | void |
-| [`SVPWM()`](MotorControl/Src/FOC_math.c:131) | 空间矢量脉宽调制 | U_alpha, U_beta, Tcm1*, Tcm2*, Tcm3* | void |
-| [`Sine_Cosine()`](MotorControl/Src/FOC_math.c:172) | 角度转正弦余弦 | θ_e, sinθ*, cosθ* | void |
+| [`Clarke_Transform()`](MotorControl/Src/FOC_math.c:134) | Clarke 变换 (abc→αβ) | ia_pu, ib_pu, I_alpha*, I_beta* | bool |
+| [`Park_Transform()`](MotorControl/Src/FOC_math.c:162) | Park 变换 (αβ→dq) | I_alpha_pu, I_beta_pu, sinθ, cosθ, I_d*, I_q* | void |
+| [`Inverse_Park_Transform()`](MotorControl/Src/FOC_math.c:86) | 逆 Park 变换 (dq→αβ) | U_d_pu, U_q_pu, sinθ, cosθ, U_alpha*, U_beta* | void |
+| [`SVPWM()`](MotorControl/Src/FOC_math.c:103) | 空间矢量脉宽调制 | U_alpha_pu, U_beta_pu, Tcm1*, Tcm2*, Tcm3* | void |
+| [`Sine_Cosine()`](MotorControl/Src/FOC_math.c:152) | 角度转正弦余弦 | θ_e, sinθ*, cosθ* | void |
+
+**重要变更说明**：
+- **Clarke_Transform**: 现在返回 `bool` 类型，输入参数必须为标幺值
+- **参数命名**: 所有电流和电压参数使用 `_pu` 后缀表示标幺值
+- **错误处理**: 无效输入时输出零值，Clarke_Transform 返回 false
 
 #### 2.4.4 FOC 控制流程示例
 
 ```c
-// 完整的 FOC 控制循环示例
+// 完整的 FOC 控制循环示例（v2.0 重构版本）
 void FOC_Control_Loop(void) {
-    // 1. 电流采样（假设已经获得三相电流）
-    float ia = get_phase_current_A();  // A相电流
-    float ib = get_phase_current_B();  // B相电流
+    // 1. 电流采样（物理量）
+    float ia_physical = get_phase_current_A();  // A相电流 (A)
+    float ib_physical = get_phase_current_B();  // B相电流 (A)
     
-    // 2. Clarke 变换：abc → αβ
-    float I_alpha, I_beta;
-    Clarke_Transform(ia, ib, &I_alpha, &I_beta);
+    // 2. 电流转换为标幺值（重要新增步骤）
+    uint8_t active_motor = MotorParams_GetActiveMotor();
+    float ia_pu = Normalization_ToPerUnit(active_motor, NORMALIZE_CURRENT, ia_physical);
+    float ib_pu = Normalization_ToPerUnit(active_motor, NORMALIZE_CURRENT, ib_physical);
     
-    // 3. 获取转子电角度
+    // 3. Clarke 变换：abc → αβ（标幺值输入）
+    float I_alpha_pu, I_beta_pu;
+    bool clarke_ok = Clarke_Transform(ia_pu, ib_pu, &I_alpha_pu, &I_beta_pu);
+    
+    if (!clarke_ok) {
+        // Clarke 变换失败，输出零电压
+        TIM1->CCR1 = TIM1->CCR2 = TIM1->CCR3 = ARR_PERIOD / 2;
+        return;
+    }
+    
+    // 4. 获取转子电角度（原始弧度）
     float theta_e = get_electrical_angle();  // 电角度 (rad)
     float sin_theta, cos_theta;
     Sine_Cosine(theta_e, &sin_theta, &cos_theta);
     
-    // 4. Park 变换：αβ → dq
+    // 5. Park 变换：αβ → dq（标幺值输入）
     float id_feedback, iq_feedback;
-    Park_Transform(I_alpha, I_beta, sin_theta, cos_theta, &id_feedback, &iq_feedback);
+    Park_Transform(I_alpha_pu, I_beta_pu, sin_theta, cos_theta, &id_feedback, &iq_feedback);
     
-    // 5. PID 控制（假设已经初始化控制器）
-    float id_ref = 0.0f;  // d轴电流设定值（通常为0）
-    float iq_ref = speed_controller_output;  // q轴电流设定值（来自速度环）
+    // 6. PID 控制（输出标幺值）
+    float id_ref = 0.0f;  // d轴电流设定值（标幺值）
+    float iq_ref = speed_controller_output;  // q轴电流设定值（标幺值）
     
-    float vd = PID_Controller(id_ref, id_feedback, dt, &id_params, &id_state);
-    float vq = PID_Controller(iq_ref, iq_feedback, dt, &iq_params, &iq_state);
+    float vd_pu = PID_Controller(id_ref, id_feedback, dt, &id_params, &id_state);
+    float vq_pu = PID_Controller(iq_ref, iq_feedback, dt, &iq_params, &iq_state);
     
-    // 6. 逆 Park 变换：dq → αβ
-    float U_alpha, U_beta;
-    Inverse_Park_Transform(vd, vq, sin_theta, cos_theta, &U_alpha, &U_beta);
+    // 7. 逆 Park 变换：dq → αβ（标幺值输入输出）
+    float U_alpha_pu, U_beta_pu;
+    Inverse_Park_Transform(vd_pu, vq_pu, sin_theta, cos_theta, &U_alpha_pu, &U_beta_pu);
     
-    // 7. SVPWM 调制：αβ → PWM 占空比
+    // 8. SVPWM 调制：αβ → 定时器计数值（直接输出）
     uint32_t Tcm1, Tcm2, Tcm3;
-    SVPWM(U_alpha, U_beta, &Tcm1, &Tcm2, &Tcm3);
+    SVPWM(U_alpha_pu, U_beta_pu, &Tcm1, &Tcm2, &Tcm3);
     
-    // 8. 更新 PWM 寄存器
+    // 9. 更新 PWM 寄存器
     TIM1->CCR1 = Tcm1;
     TIM1->CCR2 = Tcm2;
     TIM1->CCR3 = Tcm3;
 }
 ```
+
+**重构要点**：
+- **标幺值转换**: 物理电流必须先转换为标幺值
+- **错误处理**: Clarke_Transform 返回值检查
+- **数据一致性**: 整个计算链保持标幺值一致性
+- **直接输出**: SVPWM 直接输出定时器计数值
 
 ### 2.5 PID 控制器模块 (PID_controller)
 
@@ -912,9 +941,19 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 
 ## 7. 版本历史和更新记录
 
-### 7.1 当前版本 (v2.0)
+### 7.1 当前版本 (v2.1)
 
-**发布日期**：2025-11-08
+**发布日期**：2025-11-09
+
+**主要更新**：
+- **FOC 数学核心重构**: 完全基于预标准化标幺值进行计算，消除单位混合风险
+- **数据流契约**: 明确定义所有 API 的数据格式要求，确保数据流一致性
+- **输入验证增强**: 新增 foc_math_is_valid_pu() 函数，提供严格的标幺值验证
+- **错误处理优化**: 无效输入时输出零值，Clarke_Transform 返回布尔值允许上游错误处理
+- **角度路径文档化**: 明确角度处理使用原始弧度，自动包装到 [-π, π] 范围
+- **SVPWM 直接映射**: 标幺值直接映射到定时器计数值，提高性能
+
+### 7.2 版本 v2.0 (2025-11-08)
 
 **主要更新**：
 - 完全重构 PID 控制器，统一 PID/PDFF 算法
@@ -923,7 +962,7 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 - 增强 FOC 数学计算模块的鲁棒性
 - 完善命令解析系统，支持状态管理命令
 
-### 7.2 版本 v1.1 (2025-11-04)
+### 7.3 版本 v1.1 (2025-11-04)
 
 **主要更新**：
 - 添加归一化模块
@@ -931,7 +970,7 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 - 基础命令解析功能
 - 多电机参数支持
 
-### 7.3 版本 v1.0 (2025-11-03)
+### 7.4 版本 v1.0 (2025-11-03)
 
 **初始版本**：
 - 基础电机参数管理
@@ -981,8 +1020,8 @@ float output = New_Controller_Calculate(setpoint, feedback, &new_params);
 
 ---
 
-**文档版本**：v2.0  
-**最后更新**：2025-11-08  
+**文档版本**：v2.1
+**最后更新**：2025-11-09
 **文档作者**：AI、ZHOUHENG  
 **特别感谢**：
     任何在网上分享电机控制相关的知识和经验的人

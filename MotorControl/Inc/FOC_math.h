@@ -117,22 +117,28 @@
 
 #include "main.h"
 #include "arm_math.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-void Inverse_Park_Transform(float U_d, float U_q, float sin_theta, float cos_theta,
+/* 数据格式约定:
+ * - 相电流必须在调用Clarke_Transform之前转换为标幺值/定点数。
+ * - 电角度以弧度(float)形式提供给Sine_Cosine；该函数仅将其包装到[-pi, pi]范围。
+ * - Park/逆Park变换、SVPWM和下游PWM映射都基于标幺值进行操作。
+ */
+void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float cos_theta,
                            float *U_alpha_pu, float *U_beta_pu);
 
 void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
 
-void Clarke_Transform(float ia, float ib, float *I_alpha, float *I_beta);
+bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu);
 
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 
-void Park_Transform(float I_alpha, float I_beta, float sin_theta, float cos_theta, float *I_d, float *I_q);
+void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);
 
 
 

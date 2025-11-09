@@ -10,7 +10,6 @@
 
 #include "FOC_math.h"
 
-#include "normalization.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -19,14 +18,13 @@
 #define PI 3.14159265358979323846f
 #endif
 
-#include "motor_params.h"
 
 #define INV_SQRT3_F           (0.5773502691896258f)
 #define SQRT3_OVER_TWO_F      (0.8660254037844386f)
 #define TWO_PI_F              (2.0f * PI)
 
 
-// 作用：数值饱和限制，确保值在指定范围内
+// 作用：数值饱和限制，确保值在指定范围内 (Value saturation: ensures value is within specified range)
 static float foc_math_saturate(float value, float min_value, float max_value)
 {
     if (value > max_value) {
@@ -38,42 +36,8 @@ static float foc_math_saturate(float value, float min_value, float max_value)
     return value;
 }
 
-// 作用：验证并获取当前有效的电机ID
-static bool foc_math_try_get_motor_id(uint8_t *motor_id_out)
-{
-    const uint8_t motor_id = MotorParams_GetActiveMotor();
-    
-    // 检查是否有激活的电机
-    if (!MotorParams_IsAnyMotorActive()) {
-        return false;
-    }
-    
-    if (motor_id >= motors_number) {
-        return false;
-    }
 
-    if (Normalization_GetBases(motor_id) == NULL) {
-        return false;
-    }
-
-    if (motor_id_out != NULL) {
-        *motor_id_out = motor_id;
-    }
-    return true;
-}
-
-
-// 作用：将物理量转换为标幺值
-static float foc_math_to_per_unit(normalization_quantity_t quantity, float value)
-{
-    uint8_t motor_id;
-    if (foc_math_try_get_motor_id(&motor_id)) {
-        return Normalization_ToPerUnit(motor_id, quantity, value);
-    }
-    return value;
-}
-
-// 作用：将角度包装到[-π, π]范围内
+// 作用：将角度包装到[-π, π]范围内 (Angle wrapping: constrains angle to [-π, π] range)
 static float foc_math_wrap_angle(float angle)
 {
     if (!isfinite(angle)) {
@@ -89,7 +53,7 @@ static float foc_math_wrap_angle(float angle)
     return angle;
 }
 
-// 作用：计算三相电压的零序分量
+// 作用：计算三相电压的零序分量 (Zero-sequence calculation: computes zero-sequence component of three-phase voltages)
 static float foc_math_zero_sequence(float ua, float ub, float uc)
 {
     const float max_v = fmaxf(fmaxf(ua, ub), uc);
@@ -97,7 +61,7 @@ static float foc_math_zero_sequence(float ua, float ub, float uc)
     return -0.5f * (max_v + min_v);
 }
 
-// 作用：将标幺占空比转换为定时器计数值
+// 作用：将标幺占空比转换为定时器计数值 (Per-unit duty to timer ticks: converts per-unit duty cycle to timer tick values)
 static uint32_t foc_math_pu_to_ticks(float duty_pu)
 {
     duty_pu = foc_math_saturate(duty_pu, 0.0f, 1.0f);
@@ -114,28 +78,39 @@ static uint32_t foc_math_pu_to_ticks(float duty_pu)
     return (uint32_t)(ticks + 0.5f);
 }
 
-void Inverse_Park_Transform(float U_d, float U_q, float sin_theta, float cos_theta,
+static bool foc_math_is_valid_pu(float value)
+{
+    return isfinite(value) && fabsf(value) <= 1.2f;
+}
+
+void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float cos_theta,
                            float *U_alpha_pu, float *U_beta_pu)
 {
     if (U_alpha_pu == NULL || U_beta_pu == NULL) {
         return;
     }
 
-    const float U_d_pu = foc_math_to_per_unit(NORMALIZE_VOLTAGE, U_d);
-    const float U_q_pu = foc_math_to_per_unit(NORMALIZE_VOLTAGE, U_q);
+    if (!isfinite(U_d_pu) || !isfinite(U_q_pu)) {
+        *U_alpha_pu = 0.0f;
+        *U_beta_pu = 0.0f;
+        return;
+    }
 
     *U_alpha_pu = U_d_pu * cos_theta - U_q_pu * sin_theta;
     *U_beta_pu  = U_d_pu * sin_theta + U_q_pu * cos_theta;
 }
 
-void SVPWM(float U_alpha, float U_beta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
+void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
 {
     if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
         return;
     }
 
-    const float U_alpha_pu = foc_math_to_per_unit(NORMALIZE_VOLTAGE, U_alpha);
-    const float U_beta_pu  = foc_math_to_per_unit(NORMALIZE_VOLTAGE, U_beta);
+    // 输入参数验证
+    if (!isfinite(U_alpha_pu) || !isfinite(U_beta_pu)) {
+        *Tcm1 = *Tcm2 = *Tcm3 = ARR_PERIOD / 2;
+        return;
+    }
 
     const float U_a = U_alpha_pu;
     const float U_b = (-0.5f * U_alpha_pu) + (SQRT3_OVER_TWO_F * U_beta_pu);
@@ -156,18 +131,23 @@ void SVPWM(float U_alpha, float U_beta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t
     *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
 }
 
-void Clarke_Transform(float ia, float ib, float *I_alpha, float *I_beta)
+bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu)
 {
-    if (I_alpha == NULL || I_beta == NULL) {
-        return;
+    if (I_alpha_pu == NULL || I_beta_pu == NULL) {
+        return false;
     }
 
-    const float ia_pu = foc_math_to_per_unit(NORMALIZE_CURRENT, ia);
-    const float ib_pu = foc_math_to_per_unit(NORMALIZE_CURRENT, ib);
+    if (!foc_math_is_valid_pu(ia_pu) || !foc_math_is_valid_pu(ib_pu)) {
+        *I_alpha_pu = 0.0f;
+        *I_beta_pu = 0.0f;
+        return false;
+    }
 
-    *I_alpha = ia_pu;
-    *I_beta  = (ia_pu + 2.0f * ib_pu) * INV_SQRT3_F;
+    *I_alpha_pu = ia_pu;
+    *I_beta_pu  = (ia_pu + 2.0f * ib_pu) * INV_SQRT3_F;
+    return true;
 }
+
 
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
 {
@@ -179,14 +159,25 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
     arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
 }
 
-void Park_Transform(float I_alpha, float I_beta, float sin_theta, float cos_theta, float *I_d, float *I_q)
+void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q)
 {
     if (I_d == NULL || I_q == NULL) {
         return;
     }
 
-    const float I_alpha_pu = foc_math_to_per_unit(NORMALIZE_CURRENT, I_alpha);
-    const float I_beta_pu  = foc_math_to_per_unit(NORMALIZE_CURRENT, I_beta);
+    // 输入参数验证
+    if (!isfinite(I_alpha_pu) || !isfinite(I_beta_pu) || !isfinite(sin_theta) || !isfinite(cos_theta)) {
+        *I_d = 0.0f;
+        *I_q = 0.0f;
+        return;
+    }
+
+    // 检查sin和cos的有效性
+    if (fabsf(sin_theta) > 1.1f || fabsf(cos_theta) > 1.1f) {
+        *I_d = 0.0f;
+        *I_q = 0.0f;
+        return;
+    }
 
     *I_d = I_alpha_pu * cos_theta + I_beta_pu * sin_theta;
     *I_q = -I_alpha_pu * sin_theta + I_beta_pu * cos_theta;
