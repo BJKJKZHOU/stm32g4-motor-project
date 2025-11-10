@@ -27,7 +27,10 @@
         "gpio.h": "c",
         "cordic.h": "c",
         "pid_controller.h": "c",
-        "foc_math.h": "c"
+        "foc_math.h": "c",
+        "app_threadx.h": "c",
+        "test_threadx.h": "c",
+        "tx_api.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }

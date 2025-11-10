@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "vofa_com_threadx.h"
+#include "test_threadx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,6 +100,11 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
     return ret;
   }
   
+  ret = TEST_ThreadX_Init(memory_ptr); // 初始化测试线程
+  if (ret != TX_SUCCESS)
+  {
+    return ret;
+  }
 
   /* USER CODE END App_ThreadX_Init */
 
