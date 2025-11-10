@@ -25,7 +25,7 @@
 #define SQRT3_OVER_TWO_F      (0.8660254037844386f)
 #define TWO_PI_F              (2.0f * PI)
 
-#define Q31_SCALE_F           (2147483648.0f)
+#define Q31_SCALE_F           (2147483647.0f)
 #define Q31_MAX               ((q31_t)0x7FFFFFFF)
 #define Q31_MIN               ((q31_t)0x80000000)
 #define Q31_HALF              ((q31_t)0x40000000)
@@ -85,7 +85,7 @@ static q31_t foc_math_q31_from_float(float value)
     if (!isfinite(value)) {
         return 0;
     }
-    if (value >= (Q31_MAX - 1) / Q31_SCALE_F) {
+    if (value >= (float)(Q31_MAX - 1) / Q31_SCALE_F) {
         return Q31_MAX;
     }
     if (value <= -1.0f) {
@@ -362,14 +362,14 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
     }
     
     /* 将角度转换为Q1.31格式：[-π, π] → [-2^31, 2^31-1] */
-    int32_t angle_q31 = (int32_t)(wrapped * 2147483648.0f / PI);
+    int32_t angle_q31 = (int32_t)(wrapped * Q31_SCALE_F / PI);
     int32_t results[2];
     
     /* 调用CORDIC计算 */
     if (HAL_CORDIC_Calculate(&hcordic, &angle_q31, results, 1, 20) == HAL_OK) {
         /* 转换Q1.31结果回浮点数 */
-        *cos_theta_e = (float)results[0] / 2147483648.0f;
-        *sin_theta_e = (float)results[1] / 2147483648.0f;
+        *cos_theta_e = (float)results[0] / Q31_SCALE_F;
+        *sin_theta_e = (float)results[1] / Q31_SCALE_F;
     } else {
         // 计算失败，回退到软件实现
         arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
@@ -404,7 +404,7 @@ void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31)
     }
     
     /* 将角度转换为Q1.31格式：[-π, π] → [-2^31, 2^31-1] */
-    int32_t angle_q31 = (int32_t)(wrapped * 2147483648.0f / PI);
+    int32_t angle_q31 = (int32_t)(wrapped * Q31_SCALE_F / PI);
     int32_t results[2];
     
     /* 调用CORDIC计算 */

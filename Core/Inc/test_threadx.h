@@ -19,7 +19,7 @@ extern "C" {
 #include "tx_api.h"
 
 /* 测试线程配置 */
-#define TEST_THREAD_STACK_SIZE                   1024
+#define TEST_THREAD_STACK_SIZE                  512
 #define TEST_THREAD_PRIO                        9
 
 #ifndef TEST_THREAD_PREEMPTION_THRESHOLD
