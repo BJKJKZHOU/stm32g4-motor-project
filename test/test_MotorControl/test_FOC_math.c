@@ -72,6 +72,9 @@ static bool q31_equals(q31_t a, q31_t b, q31_t tolerance)
 // Test function declarations
 void test_inverse_park_transform_basic(void);
 void test_inverse_park_transform_90_degrees(void);
+void test_inverse_park_transform_45_degrees(void);
+void test_inverse_park_transform_negative_voltage(void);
+void test_inverse_park_transform_both_components(void);
 void test_clarke_transform_basic(void);
 void test_clarke_transform_zero_input(void);
 void test_park_transform_basic(void);
@@ -88,6 +91,9 @@ int main(void)
     // Run all tests
     test_inverse_park_transform_basic();
     test_inverse_park_transform_90_degrees();
+    test_inverse_park_transform_45_degrees();
+    test_inverse_park_transform_negative_voltage();
+    test_inverse_park_transform_both_components();
     test_clarke_transform_basic();
     test_clarke_transform_zero_input();
     test_park_transform_basic();
@@ -129,6 +135,56 @@ void test_inverse_park_transform_90_degrees(void)
     
     TEST_ASSERT_FLOAT_EQUAL(0.0f, U_alpha, 0.001f, "U_alpha = 0.0 when U_d=1.0, U_q=0.0, theta=90deg");
     TEST_ASSERT_FLOAT_EQUAL(1.0f, U_beta, 0.001f, "U_beta = 1.0 when U_d=1.0, U_q=0.0, theta=90deg");
+}
+
+void test_inverse_park_transform_45_degrees(void)
+{
+    printf("\n--- Test Inverse Park Transform (45 degrees) ---\n");
+    float U_alpha, U_beta;
+    
+    // Test 45 degree case: U_d=1.0, U_q=0.0, theta=45deg
+    // sin(45°) = cos(45°) = 0.7071
+    float sin_45 = 0.7071067811865476f;
+    float cos_45 = 0.7071067811865476f;
+    
+    Inverse_Park_Transform(1.0f, 0.0f, sin_45, cos_45, &U_alpha, &U_beta);
+    
+    // Expected: U_alpha = 1.0 * 0.7071 - 0.0 * 0.7071 = 0.7071
+    //           U_beta  = 1.0 * 0.7071 + 0.0 * 0.7071 = 0.7071
+    TEST_ASSERT_FLOAT_EQUAL(0.7071f, U_alpha, 0.001f, "U_alpha = 0.7071 when U_d=1.0, U_q=0.0, theta=45deg");
+    TEST_ASSERT_FLOAT_EQUAL(0.7071f, U_beta, 0.001f, "U_beta = 0.7071 when U_d=1.0, U_q=0.0, theta=45deg");
+}
+
+void test_inverse_park_transform_negative_voltage(void)
+{
+    printf("\n--- Test Inverse Park Transform (Negative Voltage) ---\n");
+    float U_alpha, U_beta;
+    
+    // Test negative voltage case: U_d=-1.0, U_q=0.0, theta=0
+    Inverse_Park_Transform(-1.0f, 0.0f, 0.0f, 1.0f, &U_alpha, &U_beta);
+    
+    // Expected: U_alpha = -1.0 * 1.0 - 0.0 * 0.0 = -1.0
+    //           U_beta  = -1.0 * 0.0 + 0.0 * 1.0 = 0.0
+    TEST_ASSERT_FLOAT_EQUAL(-1.0f, U_alpha, 0.001f, "U_alpha = -1.0 when U_d=-1.0, U_q=0.0, theta=0");
+    TEST_ASSERT_FLOAT_EQUAL(0.0f, U_beta, 0.001f, "U_beta = 0.0 when U_d=-1.0, U_q=0.0, theta=0");
+}
+
+void test_inverse_park_transform_both_components(void)
+{
+    printf("\n--- Test Inverse Park Transform (Both Components) ---\n");
+    float U_alpha, U_beta;
+    
+    // Test both d and q components: U_d=1.0, U_q=1.0, theta=30deg
+    // sin(30°) = 0.5, cos(30°) = 0.8660
+    float sin_30 = 0.5f;
+    float cos_30 = 0.8660254037844386f;
+    
+    Inverse_Park_Transform(1.0f, 1.0f, sin_30, cos_30, &U_alpha, &U_beta);
+    
+    // Expected: U_alpha = 1.0 * 0.8660 - 1.0 * 0.5 = 0.3660
+    //           U_beta  = 1.0 * 0.5 + 1.0 * 0.8660 = 1.3660
+    TEST_ASSERT_FLOAT_EQUAL(0.3660f, U_alpha, 0.001f, "U_alpha = 0.3660 when U_d=1.0, U_q=1.0, theta=30deg");
+    TEST_ASSERT_FLOAT_EQUAL(1.3660f, U_beta, 0.001f, "U_beta = 1.3660 when U_d=1.0, U_q=1.0, theta=30deg");
 }
 
 void test_clarke_transform_basic(void)
