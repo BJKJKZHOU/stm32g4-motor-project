@@ -27,7 +27,7 @@ cd test
 
 ### 当前使用: Clang 19.1.0
 
-- 路径: `D:\Program Files\LLVM\bin\clang.exe`
+- 路径: `\LLVM\bin\clang.exe`
 - 构建系统: Ninja（如已安装）或 MinGW Makefiles
 
 ---

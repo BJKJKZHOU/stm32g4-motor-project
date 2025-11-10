@@ -18,7 +18,8 @@
                 "${workspaceFolder}/Middlewares/ST/usbx/ports/generic/inc",
                 "${workspaceFolder}/Middlewares/ST/threadx/common/inc",
                 "${workspaceFolder}/Middlewares/ST/threadx/ports/cortex_m4/gnu/inc",
-                "${workspaceFolder}/Middlewares/ST/threadx/utility/low_power"
+                "${workspaceFolder}/Middlewares/ST/threadx/utility/low_power",
+                "E:/cpputest-latest/include"
             ],
             "defines": [
                 "USE_HAL_DRIVER",
