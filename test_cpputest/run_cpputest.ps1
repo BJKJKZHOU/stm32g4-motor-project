@@ -13,16 +13,6 @@ Write-Host "========================================`n"
 # 设置构建目录
 $buildDir = "build"
 
-# 检查CppUTest是否已安装
-Write-Host "Checking CppUTest installation..."
-$vcpkgRoot = $env:VCPKG_ROOT
-if (-not $vcpkgRoot) {
-    Write-Host "Warning: VCPKG_ROOT environment variable not set." -ForegroundColor Yellow
-    Write-Host "CppUTest might not be found automatically.`n" -ForegroundColor Yellow
-} else {
-    Write-Host "VCPKG_ROOT: $vcpkgRoot" -ForegroundColor Green
-}
-
 # 创建构建目录
 if (-not (Test-Path $buildDir)) {
     Write-Host "`nCreating build directory..."

@@ -19,6 +19,7 @@
                 "${workspaceFolder}/Middlewares/ST/threadx/common/inc",
                 "${workspaceFolder}/Middlewares/ST/threadx/ports/cortex_m4/gnu/inc",
                 "${workspaceFolder}/Middlewares/ST/threadx/utility/low_power",
+                "${workspaceFolder}/Drivers/CMSIS/Core/Include",
                 "E:/cpputest-latest/include"
             ],
             "defines": [
@@ -35,7 +36,27 @@
             "cStandard": "gnu11",
             "cppStandard": "gnu++14",
             "intelliSenseMode": "gcc-arm",
-            "configurationProvider": "ms-vscode.cmake-tools"
+            "configurationProvider": "  "
+        },
+        {
+            "name": "CppUTest-Tests",
+            "includePath": [
+                "${workspaceFolder}/test_cpputest/test_MotorControl",
+                "${workspaceFolder}/test_cpputest/test_stubs",
+                "${workspaceFolder}/MotorControl/Inc",
+                "${workspaceFolder}/Core/Inc",
+                "${workspaceFolder}/Drivers/CMSIS/Core/Include",
+                "${workspaceFolder}/Drivers/CMSIS/DSP/Include",
+                "E:/cpputest-latest/include"
+            ],
+            "defines": [
+                "UNIT_TESTING=1"
+            ],
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64",
+            "configurationProvider": "  "
         }
     ],
     "version": 4
