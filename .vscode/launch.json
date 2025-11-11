@@ -52,6 +52,37 @@
             "runToEntryPoint": "main",
             "showDevDebugOutput": "parsed",
             "rtos": "threadx"
+        },
+        {
+            "name": "Debug CppUTest Tests",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_cpputest/build/Debug/FOC_math_Tests_CPPUTest.exe",
+            "args": ["-v"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/test_cpputest/build/Debug",
+            "environment": [],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "preLaunchTask": "Run CppUTest Tests",
+            "logging": {
+                "moduleLoad": false
+            }
+        },
+        {
+            "name": "Debug CppUTest Tests (No Build)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_cpputest/build/Debug/FOC_math_Tests_CPPUTest.exe",
+            "args": ["-v"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/test_cpputest/build/Debug",
+            "environment": [],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "logging": {
+                "moduleLoad": false
+            }
         }
     ]
 }

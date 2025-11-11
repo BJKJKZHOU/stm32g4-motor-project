@@ -1,0 +1,9 @@
+{
+  
+    "cpputestTestAdapter.logpanel": false,
+    "cpputestTestAdapter.objDumpExecutable": "objdump",
+    "cpputestTestAdapter.preLaunchTask": "Run CppUTest Tests",
+    "cpputestTestAdapter.testExecutable": "${workspaceFolder}/test_cpputest/build/Debug/FOC_math_Tests_CPPUTest.exe",
+    "cpputestTestAdapter.testExecutablePath": "${workspaceFolder}/test_cpputest/build/Debug",
+    "cpputestTestAdapter.testLocationFetchMode": "auto"
+}
