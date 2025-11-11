@@ -60,7 +60,7 @@ void Error_Handler(void);
 #define TIM_CLK_MHz 170
 #define PWM_FREQUENCY 20000
 /* USER CODE BEGIN Private defines */
-#define ARR_PERIOD (TIM_CLK_MHz * 1000000 / PWM_FREQUENCY - 1) // =4249
+#define ARR_PERIOD ((TIM_CLK_MHz * 1000000 / PWM_FREQUENCY) / 2 - 1) // =4249
 
 /* USER CODE END Private defines */
 

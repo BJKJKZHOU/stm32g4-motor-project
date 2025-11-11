@@ -19,6 +19,12 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+// ARR_PERIOD宏定义 
+#ifndef ARR_PERIOD
+#define ARR_PERIOD 4249  // 测试用的默认值
+#endif
+
+
 // 防止 ARM DSP 头文件冲突
 #ifndef ARM_MATH_CM4
 #define ARM_MATH_CM4
@@ -111,10 +117,6 @@ HAL_StatusTypeDef HAL_CORDIC_CalculateZO(CORDIC_HandleTypeDef *hcordic, int32_t 
 void HAL_Delay(uint32_t Delay);
 uint32_t HAL_GetTick(void);
 
-// ARR_PERIOD宏定义（通常在tim.h中定义）
-#ifndef ARR_PERIOD
-#define ARR_PERIOD 1000  // 测试用的默认值
-#endif
 
 #ifdef __cplusplus
 }
