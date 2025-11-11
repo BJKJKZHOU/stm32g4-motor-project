@@ -54,3 +54,9 @@ Drivers/
 
 # 第三方中间件库
 Middlewares/
+
+# 代码覆盖率报告
+CoverageReport/
+
+test_cpputest/coverage_report/html/Modules/
+test_cpputest/coverage_report/html/third-party/

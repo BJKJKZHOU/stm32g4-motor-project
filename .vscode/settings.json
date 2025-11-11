@@ -61,5 +61,23 @@
 
     // Test Explorer Configuration
     "testing.automaticallyOpenPeekView": "never",
-    "testing.automaticallyOpenTestResults": "openOnTestStart"
+    "testing.automaticallyOpenTestResults": "openOnTestStart",
+    "coverage-gutters.manualCoverageFilePaths": [
+        "${workspaceFolder}/build/Debug/FOC_math_Tests_CPPUTest.exe"
+    ],
+    "coverage-gutters.remotePathResolve": [
+        {
+            "localPath": "${workspaceFolder}/test_cpputest/src/foc_math/foc_math.c",
+            "remotePath": "${workspaceFolder}/src/foc_math/foc_math.c"
+        }
+    ],
+    "coverage-gutters.coverageFileNames": [
+        
+        "lcov.info",
+        "cov.xml",
+        "coverage.xml",
+        "cobertura.xml",
+        "jacoco.xml",
+        "coverage.cobertura.xml"
+    ]
 }
