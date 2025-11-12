@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "vofa_com_threadx.h"
 #include "test_threadx.h"
+#include "motor_control_threadx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -101,6 +102,12 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
   }
   
   ret = TEST_ThreadX_Init(memory_ptr); // 初始化测试线程
+  if (ret != TX_SUCCESS)
+  {
+    return ret;
+  }
+
+  ret = MOTOR_ThreadX_Init(memory_ptr); // 初始化电机控制线程
   if (ret != TX_SUCCESS)
   {
     return ret;

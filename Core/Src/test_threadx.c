@@ -46,6 +46,6 @@ void test_thread_entry(ULONG thread_input)
 
 
 
-
+      tx_thread_sleep(1);
   }
 }

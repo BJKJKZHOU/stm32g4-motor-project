@@ -31,7 +31,8 @@
         "app_threadx.h": "c",
         "test_threadx.h": "c",
         "tx_api.h": "c",
-        "testharness.h": "c"
+        "testharness.h": "c",
+        "motor_control_threadx.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "cmake.configureOnOpen": false,
