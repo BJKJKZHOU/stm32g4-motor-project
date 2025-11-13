@@ -7,7 +7,6 @@
     ----------------------------------------------------------------------       
 
     确定系统中所有需要归一化(标幺)的物理量及其预期的最大值。
-    Q31格式支持: 使用arm_math库的q31_t数据类型
     归一化: 将各种电机参数归一化到[-1,1]或[0,1]范围
     双向转换: 支持浮点到Q31的归一化转换和反向反归一化
     范围保护: 自动限制输入值在有效范围内，防止溢出
@@ -128,16 +127,6 @@ float Normalization_ToPerUnit(uint8_t motor_id, normalization_quantity_t quantit
 // 将标幺值转换为实际值
 float Normalization_FromPerUnit(uint8_t motor_id, normalization_quantity_t quantity, float pu_value);
 
-// 将实际值转换为Q31格式 ，范围[-1, 1]，使用电机归一化基值
-q31_t Normalization_ToQ31(uint8_t motor_id, normalization_quantity_t quantity, float value);
-// 将Q31格式转换为实际值
-float Normalization_FromQ31(uint8_t motor_id, normalization_quantity_t quantity, q31_t value);
-
-// 通用归一化函数 - 直接使用基值
-float Normalization_ToPerUnitWithBase(float value, float base);// 将实际值转换为标幺值 [-1, 1]
-q31_t Normalization_ToQ31WithBase(float value, float base);// 将实际值转换为Q31格式 ，范围[-1, 1]
-float Normalization_FromPerUnitWithBase(float pu_value, float base);// 将标幺值转换为实际值
-float Normalization_FromQ31WithBase(q31_t value, float base);// 将Q31格式转换为实际值
 
 #ifdef __cplusplus
 }

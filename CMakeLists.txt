@@ -61,6 +61,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     MotorControl/Src/PID_controller.c
     MotorControl/Src/normalization.c
     MotorControl/Src/Positioning.c
+    MotorControl/Src/FOC_Loop.c
 )
 
 # Add include paths

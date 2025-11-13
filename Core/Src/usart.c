@@ -183,23 +183,23 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 /* USER CODE BEGIN 1 */
 
 /**
-  * @brief  printf重定向函数 - 将字符输出到LPUART1串口
+  * @brief  printf重定向函�? - 将字符输出到LPUART1串口
   * @param  ch: 要发送的字符
-  * @retval 发送的字符
+  * @retval 发�?�的字符
   */
 int __io_putchar(int ch)
 {
-    // 使用轮询方式发送单个字符到LPUART1
+    // 使用轮询方式发�?�单个字符到LPUART1
     HAL_UART_Transmit(&hlpuart1, (uint8_t*)&ch, 1, 1000);
     return ch;
 }
 
 /**
-  * @brief  浮点数格式化函数 - 将浮点数格式化为字符串
-  * @param  buffer: 输出缓冲区
-  * @param  buffer_size: 缓冲区大小
-  * @param  value: 要格式化的浮点数值
-  * @retval 无
+  * @brief  浮点数格式化函数 - 将浮点数格式化为字符�?
+  * @param  buffer: 输出缓冲�?
+  * @param  buffer_size: 缓冲区大�?
+  * @param  value: 要格式化的浮点数�?
+  * @retval �?
   */
 void format_float_value(char* buffer, int buffer_size, float value)
 {
@@ -211,11 +211,11 @@ void format_float_value(char* buffer, int buffer_size, float value)
     // 处理整数部分
     int integer_part = (int)value;
     
-    // 处理小数部分（保留5位小数）
+    // 处理小数部分（保�?5位小数）
     float fractional = value - integer_part;
     if (fractional < 0) fractional = -fractional; // 处理负数
     
-    int fractional_part = (int)(fractional * 100000 + 0.5f); // 四舍五入到5位小数
+    int fractional_part = (int)(fractional * 100000 + 0.5f); // 四舍五入�?5位小�?
     
     // 处理负数
     if (value < 0 && integer_part == 0) {

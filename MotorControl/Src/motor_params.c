@@ -26,37 +26,37 @@ uint8_t g_active_motor_id = 0xFF;
 void MotorParams_Init(void)
 {
     // 初始化0号电机参数
-    motor_params[MOTOR_0].V_DC = 14.0f;        // 直流母线电压
-    motor_params[MOTOR_0].I_rated = 4.0f;      // 额定电流
-    motor_params[MOTOR_0].Rs = 0.5f;           // 电阻
-    motor_params[MOTOR_0].Lq = 0.001f;         // q轴电感
+    motor_params[MOTOR_0].V_DC = 12.0f;        // 直流母线电压
+    motor_params[MOTOR_0].I_rated = 11.6f;      // 额定电流
+    motor_params[MOTOR_0].Rs = 0.027f;           // 电阻
+    motor_params[MOTOR_0].Lq = 0.045e-3f;         // q轴电感
     motor_params[MOTOR_0].Ld = 0.001f;          // d轴电感（对于表贴式永磁同步电机，Ld=Lq）
-    motor_params[MOTOR_0].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
-    motor_params[MOTOR_0].Pn = 4.0f;           // 极对数
-    motor_params[MOTOR_0].Ke = 2.0f;           // 反电动势常数
+    motor_params[MOTOR_0].RPM_rated = 5300.0f; // 额定转速（电机参数，不代表最终转数限制）
+    motor_params[MOTOR_0].Pn = 6.0f;           // 极对数
+    motor_params[MOTOR_0].Ke = 1.84f;           // 反电动势常数
     motor_params[MOTOR_0].Flux = motor_params[MOTOR_0].Ke * FLUX_CONSTANT / motor_params[MOTOR_0].Pn;         // 转子磁链
-    motor_params[MOTOR_0].J = 0.0f;            // 转动惯量
+    motor_params[MOTOR_0].J = 4.56e-5f;            // 转动惯量
     motor_params[MOTOR_0].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 
     // 初始化0号电机控制系统限值
-    motor_limit_params[MOTOR_0].I_limit_user = 8.0f;//用户希望的最大电流
-    motor_limit_params[MOTOR_0].I_limit_max = 15.0f;//硬件支持的最大电流,一旦硬件确定,就不能再改变
+    motor_limit_params[MOTOR_0].I_limit_user = 11.6;//用户希望的最大电流
+    motor_limit_params[MOTOR_0].I_limit_max = 18.0f;//硬件支持的最大电流,一旦硬件确定,就不能再改变
     motor_limit_params[MOTOR_0].speed_limit_user = 2700.0f;//用户希望的最大转速,一般是实际的转数限制
     motor_limit_params[MOTOR_0].speed_limit_max = motor_params[MOTOR_0].RPM_rated;//默认电机额定转数
     motor_limit_params[MOTOR_0].I_limit_actual =  fmin(motor_limit_params[MOTOR_0].I_limit_user, motor_limit_params[MOTOR_0].I_limit_max);//最终实际最大电流
     motor_limit_params[MOTOR_0].speed_limit_actual = fmin(motor_limit_params[MOTOR_0].speed_limit_user, motor_limit_params[MOTOR_0].speed_limit_max);//最终实际最大转速
     
     // 初始化1号电机参数
-    motor_params[MOTOR_1].V_DC = 48.0f;        // 直流母线电压
-    motor_params[MOTOR_1].I_rated = 5.0f;      // 额定电流
-    motor_params[MOTOR_1].Rs = 0.5f;           // 电阻
-    motor_params[MOTOR_1].Lq = 0.001f;         // q轴电感
-    motor_params[MOTOR_1].Ld = 0.001f;          // d轴电感（对于表贴式永磁同步电机，Ld=Lq）
-    motor_params[MOTOR_1].RPM_rated = 3000.0f; // 额定转速（电机参数，不代表最终转数限制）
-    motor_params[MOTOR_1].Pn = 4.0f;           // 极对数
-    motor_params[MOTOR_1].Ke = 2.0f;           // 反电动势常数
+    motor_params[MOTOR_1].V_DC = 0.0f;        // 直流母线电压
+    motor_params[MOTOR_1].I_rated = 0.0f;      // 额定电流
+    motor_params[MOTOR_1].Rs = 0.0f;           // 电阻
+    motor_params[MOTOR_1].Lq = 0.000f;         // q轴电感
+    motor_params[MOTOR_1].Ld = 0.000f;          // d轴电感（对于表贴式永磁同步电机，Ld=Lq）
+    motor_params[MOTOR_1].RPM_rated = 0000.0f; // 额定转速（电机参数，不代表最终转数限制）
+    motor_params[MOTOR_1].Pn = 0.0f;           // 极对数
+    motor_params[MOTOR_1].Ke = 0.0f;           // 反电动势常数
     motor_params[MOTOR_1].Flux = motor_params[MOTOR_1].Ke * FLUX_CONSTANT / motor_params[MOTOR_1].Pn;         // 转子磁链
-    motor_params[MOTOR_1].J = 0.01f;           // 转动惯量
+    motor_params[MOTOR_1].J = 0.00f;           // 转动惯量
     motor_params[MOTOR_1].B = 0.0f;            // 摩擦系数（可以忽略不记，就是0）
 
     // 初始化1号电机控制系统限值
@@ -84,7 +84,6 @@ const ParamDesc_t param_descs[PARAM_COUNT] = {
     {"P1010", "J", "kg·m²*10^-3", "转动惯量"},       // 索引9
     {"P1011", "B", "N·m·s/rad", "摩擦系数"}          // 索引10
 };
-
 
 const ParamMap_t param_maps[motors_number][PARAM_COUNT] = {
     // 电机0的参数映射

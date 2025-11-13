@@ -199,6 +199,7 @@ float Normalization_ToPerUnit(uint8_t motor_id,
     return pu;
 }
 
+
 float Normalization_FromPerUnit(uint8_t motor_id,
                                 normalization_quantity_t quantity,
                                 float pu_value)
@@ -211,25 +212,6 @@ float Normalization_FromPerUnit(uint8_t motor_id,
     if (pu_value > NORMALIZATION_CLAMP_MAX) pu_value = NORMALIZATION_CLAMP_MAX;
     if (pu_value < NORMALIZATION_CLAMP_MIN) pu_value = NORMALIZATION_CLAMP_MIN;
     return pu_value * base;
-}
-
-q31_t Normalization_ToQ31(uint8_t motor_id,
-                          normalization_quantity_t quantity,
-                          float value)
-{
-    float pu = Normalization_ToPerUnit(motor_id, quantity, value);
-    q31_t qvalue;
-    arm_float_to_q31(&pu, &qvalue, 1);
-    return qvalue;
-}
-
-float Normalization_FromQ31(uint8_t motor_id,
-                            normalization_quantity_t quantity,
-                            q31_t value)
-{
-    float pu;
-    arm_q31_to_float(&value, &pu, 1);
-    return Normalization_FromPerUnit(motor_id, quantity, pu);
 }
 
  
@@ -245,13 +227,6 @@ float Normalization_ToPerUnitWithBase(float value, float base)
     return pu;
 }
 
-q31_t Normalization_ToQ31WithBase(float value, float base)
-{
-    float pu = Normalization_ToPerUnitWithBase(value, base);
-    q31_t qvalue;
-    arm_float_to_q31(&pu, &qvalue, 1);
-    return qvalue;
-}
 
 float Normalization_FromPerUnitWithBase(float pu_value, float base)
 {

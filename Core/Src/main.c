@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "app_threadx.h"
 #include "main.h"
+#include "adc.h"
 #include "cordic.h"
 #include "dma.h"
 #include "usart.h"
@@ -102,11 +103,12 @@ int main(void)
   MX_TIM2_Init();
   MX_USB_PCD_Init();
   MX_TIM1_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
   /* Initialize motor parameters */
-  MotorParams_Init();   //初始化电机参数
-  Normalization_Init(); //初始化归一化参数     
+  MotorParams_Init();   //初始化电机参�?
+  Normalization_Init(); //初始化归�?化参�?     
 
   /* USER CODE END 2 */
 
@@ -194,7 +196,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 1 */
 
   if (htim->Instance == TIM2) {
-    // �?化信号量处理，直接释放信号量
+    // 信号量处理，直接释放信号�?
     tx_semaphore_put(&vofa_timer_semaphore);
   }
 
