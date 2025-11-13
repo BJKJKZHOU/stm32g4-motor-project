@@ -2,7 +2,15 @@
 这是一个普通的工程
 
 
-## 修Bug
-1. 串口通信时不时出点小毛病：原因是使用的软件双缓冲和 DMA 配置为 Circular 循环模式会有冲突。
-使用硬件双缓冲可配置循环模式，软件双缓冲需要配置为 NORMAL。
-之前配置发送时的bug也是因为DMA Circular 循环模式导致定时器中断无效，不能实现定时发送，配置为 NORMAL解决。
+## Streamline_Project 分支 
+    简化项目结构，确定主要数据格式，
+    采用浮点数（float，单精度）作为工程的主要数据格式，使用标幺化。
+    在关键位置 可选的使用 CORDIC 。
+
+## 相关模块
+
+### 电机控制相关 MotorControl
+
+### 串口通信 Communication
+
+### 单元测试 test_cpputest
