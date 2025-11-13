@@ -140,6 +140,9 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);
 
+void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector);
+
+
 /* Q31 fixed-point (1.31) variants */
 bool Inverse_Park_TransformQ31(q31_t U_d_q31, q31_t U_q_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
                                q31_t *U_alpha_q31, q31_t *U_beta_q31);
@@ -175,6 +178,28 @@ float LPF_Filter(LPF_Float_t *filter, float input, float cutoff_freq, float samp
 q31_t LPF_FilterQ31(LPF_Q31_t *filter, q31_t input, float cutoff_freq, float sample_time, bool unit);
 
 
+
+// ===================================================================================
+// 简化低通滤波器 Q15
+typedef union {
+    int32_t sl;          // 32位整体访问（用于误差累积）
+    struct {
+        int16_t lo;      // 低16位 - 滤波输出值
+        int16_t hi;      // 高16位 - 累积误差
+    } sw;
+} FilterOut_t;
+
+// 滤波器结构体
+typedef struct {
+    FilterOut_t state;   // 滤波器状态
+    uint16_t coeff;      // 滤波器系数（Q16格式）
+} LPF_1stOrder_t;
+
+// 函数声明
+void LPF_Init(LPF_1stOrder_t* filter, float cutoff_freq, float sample_time, int16_t init_val);
+int16_t LPF_Update(LPF_1stOrder_t* filter, int16_t input);
+
+// ===================================================================================
 
 
 

@@ -576,3 +576,198 @@ q31_t LPF_FilterQ31(LPF_Q31_t *filter, q31_t input, float cutoff_freq, float sam
     
     return output;
 }
+
+
+/**
+ * @brief 初始化滤波器
+ * @param filter 滤波器指针
+ * @param cutoff_freq 截止频率 (Hz)
+ * @param sample_time 采样时间 (秒)
+ * @param init_val 初始输出值
+ * 
+ * @note 系数计算: α = 1 - exp(-2π * fc * Ts)
+ */
+void LPF_Init(LPF_1stOrder_t* filter, float cutoff_freq, float sample_time, int16_t init_val) {
+    // 计算滤波器系数: α = 1 - exp(-2π * fc * Ts)
+    float alpha = 1.0f - expf(-2.0f * 3.1415926535f * cutoff_freq * sample_time);
+    
+    // 限制系数范围确保稳定性
+    if (alpha < 0.0f) alpha = 0.0f;
+    if (alpha > 1.0f) alpha = 1.0f;
+    
+    // 转换为Q16格式 (0x0000-0xFFFF 对应 0.0-1.0)
+    filter->coeff = (uint16_t)(alpha * 65536.0f);
+    
+    // 初始化状态
+    filter->state.sw.lo = init_val;
+    filter->state.sw.hi = 0;
+}
+
+/**
+ * @brief 滤波器更新函数 - 核心算法
+ * @param filter 滤波器指针
+ * @param input 输入信号
+ * @return 滤波后的输出信号
+ * 
+ * 算法原理：
+ * state.sl = state.sl + (input - state.sw.hi) * coeff
+ * - 利用32位累加避免截断误差
+ * - 结果自动分离：lo=输出，hi=累积误差
+ */
+int16_t LPF_Update(LPF_1stOrder_t* filter, int16_t input) {
+    filter->state.sl = filter->state.sl + (int32_t)(input - filter->state.sw.hi) * filter->coeff;
+    return filter->state.sw.lo;
+}
+
+
+void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector)
+{
+    // 输出变量初始化
+    if (Tcm1 != NULL) *Tcm1 = 0;
+    if (Tcm2 != NULL) *Tcm2 = 0;
+    if (Tcm3 != NULL) *Tcm3 = 0;
+    if (sector != NULL) *sector = 0;
+    
+ 
+    if (!isfinite(Valpha) || !isfinite(Vbeta)) {
+        return;
+    }
+    
+    // 使用宏定义计算PWM周期
+    float Tpwm = 1.0f / PWM_FREQUENCY;  // PWM周期 = 1 / PWM频率
+    
+    float angle = atan2f(Vbeta, Valpha);
+    uint8_t temp_sector = 0;
+    
+    // 六分仪判断：将360度分为6个60度扇区
+    if (angle >= -PI/6 && angle < PI/6) {
+        temp_sector = 1;
+    } else if (angle >= PI/6 && angle < PI/2) {
+        temp_sector = 2;
+    } else if (angle >= PI/2 && angle < 5*PI/6) {
+        temp_sector = 3;
+    } else if (angle >= 5*PI/6 || angle < -5*PI/6) {
+        temp_sector = 4;
+    } else if (angle >= -5*PI/6 && angle < -PI/2) {
+        temp_sector = 5;
+    } else if (angle >= -PI/2 && angle < -PI/6) {
+        temp_sector = 6;
+    }
+    
+    if (sector != NULL) {
+        *sector = temp_sector;
+    }
+    
+    // 电压矢量幅值限制（标幺值范围[-1,1]）
+    float V_mag = sqrtf(Valpha*Valpha + Vbeta*Vbeta);
+    if (V_mag > 1.0f) {
+        // 过调制处理：按比例缩小
+        float scale = 1.0f / V_mag;
+        Valpha *= scale;
+        Vbeta *= scale;
+        V_mag = 1.0f;
+    }
+    
+    float T1 = 0.0f, T2 = 0.0f;
+    
+    // 根据扇区计算T1和T2（标幺化处理）
+    switch(temp_sector) {
+        case 1:
+            T1 = -Valpha + Vbeta * INV_SQRT3_F;
+            T2 = 2.0f * Vbeta * INV_SQRT3_F;
+            break;
+        case 2:
+            T1 = Valpha + Vbeta * INV_SQRT3_F;
+            T2 = -Valpha + Vbeta * INV_SQRT3_F;
+            break;
+        case 3:
+            T1 = 2.0f * Vbeta * INV_SQRT3_F;
+            T2 = -Valpha - Vbeta * INV_SQRT3_F;
+            break;
+        case 4:
+            T1 = -2.0f * Vbeta * INV_SQRT3_F;
+            T2 = Valpha - Vbeta * INV_SQRT3_F;
+            break;
+        case 5:
+            T1 = -Valpha - Vbeta * INV_SQRT3_F;
+            T2 = -2.0f * Vbeta * INV_SQRT3_F;
+            break;
+        case 6:
+            T1 = Valpha - Vbeta * INV_SQRT3_F;
+            T2 = Valpha + Vbeta * INV_SQRT3_F;
+            break;
+        default:
+            T1 = 0.0f;
+            T2 = 0.0f;
+            break;
+    }
+    
+    // 过调制处理
+    if (T1 + T2 > Tpwm) {
+        float scale = Tpwm / (T1 + T2);
+        T1 = T1 * scale;
+        T2 = T2 * scale;
+    }
+    
+    // 7段式PWM生成（与原有实现保持一致）
+    float ta = (Tpwm - (T1 + T2)) / 4.0f;
+    float tb = ta + T1 / 2.0f;
+    float tc = tb + T2 / 2.0f;
+    
+    // 输出调制信号
+    float temp_Tcm1 = 0.0f, temp_Tcm2 = 0.0f, temp_Tcm3 = 0.0f;
+    
+    switch(temp_sector) {
+        case 1:
+            temp_Tcm1 = tb;
+            temp_Tcm2 = ta;
+            temp_Tcm3 = tc;
+            break;
+        case 2:
+            temp_Tcm1 = ta;
+            temp_Tcm2 = tc;
+            temp_Tcm3 = tb;
+            break;
+        case 3:
+            temp_Tcm1 = ta;
+            temp_Tcm2 = tb;
+            temp_Tcm3 = tc;
+            break;
+        case 4:
+            temp_Tcm1 = tc;
+            temp_Tcm2 = tb;
+            temp_Tcm3 = ta;
+            break;
+        case 5:
+            temp_Tcm1 = tc;
+            temp_Tcm2 = ta;
+            temp_Tcm3 = tb;
+            break;
+        case 6:
+            temp_Tcm1 = tb;
+            temp_Tcm2 = tc;
+            temp_Tcm3 = ta;
+            break;
+        default:
+            temp_Tcm1 = Tpwm / 2.0f;
+            temp_Tcm2 = Tpwm / 2.0f;
+            temp_Tcm3 = Tpwm / 2.0f;
+            break;
+    }
+    
+    // 归一化处理，与SVPWM函数保持一致
+    const float Tcm1_pu = foc_math_saturate(2.0f * temp_Tcm1 / Tpwm, 0.0f, 1.0f);
+    const float Tcm2_pu = foc_math_saturate(2.0f * temp_Tcm2 / Tpwm, 0.0f, 1.0f);
+    const float Tcm3_pu = foc_math_saturate(2.0f * temp_Tcm3 / Tpwm, 0.0f, 1.0f);
+
+    // 转换为定时器计数值
+    if (Tcm1 != NULL) {
+        *Tcm1 = foc_math_pu_to_ticks(Tcm1_pu);
+    }
+    if (Tcm2 != NULL) {
+        *Tcm2 = foc_math_pu_to_ticks(Tcm2_pu);
+    }
+    if (Tcm3 != NULL) {
+        *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
+    }
+}
