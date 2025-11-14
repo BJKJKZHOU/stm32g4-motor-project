@@ -13,6 +13,22 @@
 
 #include <math.h>
 
+// 声明外部全局变量 - 来自main.c中断
+extern volatile uint32_t g_Tcm1;
+extern volatile uint32_t g_Tcm2;
+extern volatile uint32_t g_Tcm3;
+
+// 声明外部全局变量 - 来自FOC_Loop.c
+extern volatile float g_debug_angle;
+extern volatile float g_debug_sin;
+extern volatile float g_debug_cos;
+
+extern volatile uint8_t sector ;
+
+extern volatile uint32_t g_tim1_interrupt_count;
+extern volatile float g_tim1_interrupt_freq_hz;
+
+
 TX_THREAD vofa_com_thread;
 
 
@@ -28,7 +44,6 @@ static float test_data[TEST_DATA_COUNT] = {0};
 // 全局状态变量，控制波形是否开启发送
 static uint8_t vofa_justfloat_enabled = 0;
 
-static uint32_t time_counter = 0;
 
 void Vofa_UpdateTestData(void);
 
@@ -95,7 +110,7 @@ void vofa_com_thread_entry(ULONG thread_input)
     /* 发送数据到VOFA+ */
       Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
     }
-    time_counter++;  //测试数据的时间计数器
+     
 
     tx_thread_sleep(1);
   }
@@ -107,52 +122,20 @@ void vofa_com_thread_entry(ULONG thread_input)
 
 void Vofa_UpdateTestData(void)
 {
-  float time = time_counter * 0.1f;  // 时间基准，每100ms增加0.1
+  test_data[0] = 0.0f;
+  test_data[1] = (float)g_Tcm1;  // FOC_OpenLoopTest 输出 1 - PWM比较值1
+  test_data[2] = (float)g_Tcm2;  // FOC_OpenLoopTest 输出 2 - PWM比较值2
+  test_data[3] = (float)g_Tcm3;  // FOC_OpenLoopTest 输出 3 - PWM比较值3
   
-  /* 1. 正弦波 */
-  test_data[0] = sinf(2.0f * M_PI * 0.5f * time);
+  test_data[4] = g_debug_angle;
+  test_data[5] = g_debug_sin;
+  test_data[6] = g_debug_cos;
+  test_data[7] = (float)sector;
+  test_data[8] = g_tim1_interrupt_freq_hz;
+  test_data[9] = g_tim1_interrupt_count;
+  test_data[10] =0.0;
   
-  /* 2. 余弦波 */
-  test_data[1] = cosf(2.0f * M_PI * 0.5f * time);
-  
-  /* 3. 三角波 */
-  test_data[2] = 2.0f * fabsf(fmodf(time, 2.0f) - 1.0f) - 1.0f;
-  
-  /* 4. 方波 */
-  test_data[3] = (fmodf(time, 2.0f) < 1.0f) ? 1.0f : -1.0f;
-  
-  /* 5. 锯齿波 */
-  test_data[4] = fmodf(time, 2.0f) - 1.0f;
-  
-  /* 6. 随机噪声 */
-  test_data[5] = ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
-  
-  /* 7. 指数函数 */
-  test_data[6] = expf(-0.5f * fmodf(time, 4.0f));
-  
-  /* 8. 对数函数 */
-  test_data[7] = logf(1.0f + fabsf(sinf(2.0f * M_PI * 0.2f * time)));
-  
-  /* 9. 脉冲信号 */
-  test_data[8] = (fmodf(time, 4.0f) < 0.1f) ? 1.0f : 0.0f;
-  
-  /* 10. 斜坡信号 */
-  test_data[9] = fmodf(time * 0.5f, 2.0f) - 1.0f;
 
-  /* 11. 接收数据1的返回（通道10） */
-  test_data[10] = Vofa_GetChannelData(RECEIVING_CHANNEL_0); 
-  
-  /* 12. 接收数据2的返回（通道11） */
-  test_data[11] = Vofa_GetChannelData(RECEIVING_CHANNEL_1); 
-  
-  /* 13. 接收数据3的返回（通道12） */
-  test_data[12] = Vofa_GetChannelData(RECEIVING_CHANNEL_2);   
-    
-  // /* 14. 接收数据总和 */
-  // test_data[13] = ch10_data + ch11_data + ch12_data;
-  
-  // /* 15. 接收数据平均值 */
-  // test_data[14] = (ch10_data + ch11_data + ch12_data) / 3.0f;
 }
 
 

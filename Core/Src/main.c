@@ -33,6 +33,7 @@
 #include "vofa_com_threadx.h"
 #include "motor_params.h"
 #include "normalization.h"
+#include "FOC_Loop.h"
 
 /* USER CODE END Includes */
 
@@ -54,7 +55,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+// �?????环测试输出数�?????
+volatile uint32_t g_Tcm1 = 0;
+volatile uint32_t g_Tcm2 = 0;
+volatile uint32_t g_Tcm3 = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,13 +106,18 @@ int main(void)
   MX_CORDIC_Init();
   MX_TIM2_Init();
   MX_USB_PCD_Init();
-  MX_TIM1_Init();
   MX_ADC2_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   /* Initialize motor parameters */
-  MotorParams_Init();   //初始化电机参�?
-  Normalization_Init(); //初始化归�?化参�?     
+
+
+  MotorParams_Init();   //初始化电机参�??????
+  Normalization_Init(); //初始化归�??????化参�??????  
+  
+  
+
 
   /* USER CODE END 2 */
 
@@ -175,6 +184,9 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+// TIM1中断执行标志位 - 用于频率减半控制
+static bool tim1_execute_flag = false;
+
 /* USER CODE END 4 */
 
 /**
@@ -195,10 +207,42 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
 
-  if (htim->Instance == TIM2) {
-    // 信号量处理，直接释放信号�?
-    tx_semaphore_put(&vofa_timer_semaphore);
+  if (htim->Instance == TIM1) {
+    
+    // TIM1中断标志位翻转
+    tim1_execute_flag = !tim1_execute_flag;
+    
+    // 只有当标志位为true时才执行FOC函数（频率减半）
+    if (tim1_execute_flag) {
+      //TIM1更新中断 - FOC开环测试
+      uint32_t Tcm1, Tcm2, Tcm3;
+      
+      
+      // 调用开环测试函数
+      // 使用较低转速以便在VOFA中观察平滑波形
+      // 30rpm → 2Hz电频率 → 500ms周期 → 足够的采样点显示平滑波形
+      FOC_OpenLoopTest(500.0f, &Tcm1, &Tcm2, &Tcm3);
+      
+      // 保存数据供vofa线程使用
+      g_Tcm1 = Tcm1;
+      g_Tcm2 = Tcm2;
+      g_Tcm3 = Tcm3;
+      
+      // 将计算结果写入定时器比较寄存器
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
+      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
+
+    }
   }
+  
+  if (htim->Instance == TIM2) {
+
+    // 信号量处理，直接释放信号量
+    tx_semaphore_put(&vofa_timer_semaphore);
+
+  }
+
 
   /* USER CODE END Callback 1 */
 }

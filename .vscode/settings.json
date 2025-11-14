@@ -34,7 +34,8 @@
         "testharness.h": "c",
         "motor_control_threadx.h": "c",
         "random": "c",
-        "positioning.h": "c"
+        "positioning.h": "c",
+        "foc_loop.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "cmake.configureOnOpen": false,

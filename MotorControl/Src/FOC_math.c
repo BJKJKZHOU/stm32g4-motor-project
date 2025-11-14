@@ -21,8 +21,9 @@
 #endif
 
 
-#define INV_SQRT3_F           (0.5773502691896258f)
-#define SQRT3_OVER_TWO_F      (0.8660254037844386f)
+#define INV_SQRT3_F           (0.5773502691896258f)      // 1/√3
+#define SQRT3_OVER_TWO_F      (0.8660254037844386f)      // √3/2
+#define TWO_BY_SQRT3_F        (1.1547005383792515f)      // 2/√3
 #define TWO_PI_F              (2.0f * PI)
 
 #define Q31_SCALE_F           (2147483647.0f)
@@ -109,7 +110,8 @@ void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float c
     *U_beta_pu  = U_d_pu * sin_theta + U_q_pu * cos_theta;
 }
 
-// 谐波注入SPWM实现SVPWM
+// 谐波注入SPWM实现SVPWM (Min-Max方法生成马鞍波)
+// 输入[-1~+1]，输出[0~ARR_PERIOD]
 void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
 {
     if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
@@ -122,20 +124,44 @@ void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *T
         return;
     }
 
+    // 输入范围说明：
+    // U_alpha_pu, U_beta_pu 是标幺值，范围 [-1, 1]
+    // 其中 ±1.0 对应电压基值 V_base = V_DC/√3
+    // SVPWM 线性调制区：矢量幅值 ≤ 1/√3 ≈ 0.577
+    // 过调制区：0.577 < 幅值 ≤ 1.0
+    
+    // 逆Clarke变换：将αβ坐标系的电压转换为三相电压（标幺值）
+    // 标准逆Clarke变换公式（等幅值变换）：
+    // U_a = U_alpha
+    // U_b = -0.5 * U_alpha + (√3/2) * U_beta
+    // U_c = -0.5 * U_alpha - (√3/2) * U_beta
+    // 输出范围：[-1, 1] 标幺值
     const float U_a = U_alpha_pu;
     const float U_b = (-0.5f * U_alpha_pu) + (SQRT3_OVER_TWO_F * U_beta_pu);
     const float U_c = (-0.5f * U_alpha_pu) - (SQRT3_OVER_TWO_F * U_beta_pu);
 
+    // 计算零序分量（马鞍波的关键）
+    // 零序分量 = -(max + min) / 2
+    // 这会产生三次谐波注入，形成马鞍波形状，提升电压利用率约15%
     const float U_zero = foc_math_zero_sequence(U_a, U_b, U_c);
 
+    // 将零序分量注入到三相电压中（标幺值）
+    // 注入后的范围：仍为 [-1, 1] 左右，但峰值被削平
     const float Ua_injected = U_a + U_zero;
     const float Ub_injected = U_b + U_zero;
     const float Uc_injected = U_c + U_zero;
 
-    const float Tcm1_pu = foc_math_saturate(Ua_injected + 0.5f, 0.0f, 1.0f);
-    const float Tcm2_pu = foc_math_saturate(Ub_injected + 0.5f, 0.0f, 1.0f);
-    const float Tcm3_pu = foc_math_saturate(Uc_injected + 0.5f, 0.0f, 1.0f);
+    // 将标幺电压 [-1, 1] 转换为占空比 [0, 1]
+    // 映射关系：
+    //   标幺值 -1.0 → 占空比 0.0 (0%)
+    //   标幺值  0.0 → 占空比 0.5 (50%, 中点)
+    //   标幺值 +1.0 → 占空比 1.0 (100%)
+    // 公式：duty = (voltage_pu + 1.0) / 2.0 = voltage_pu * 0.5 + 0.5
+    const float Tcm1_pu = foc_math_saturate(Ua_injected * 0.5f + 0.5f, 0.0f, 1.0f);
+    const float Tcm2_pu = foc_math_saturate(Ub_injected * 0.5f + 0.5f, 0.0f, 1.0f);
+    const float Tcm3_pu = foc_math_saturate(Uc_injected * 0.5f + 0.5f, 0.0f, 1.0f);
 
+    // 转换为定时器计数值
     *Tcm1 = foc_math_pu_to_ticks(Tcm1_pu);
     *Tcm2 = foc_math_pu_to_ticks(Tcm2_pu);
     *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
@@ -180,7 +206,9 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
     
     if (HAL_CORDIC_Configure(&hcordic, &sConfig) != HAL_OK) {
         // 配置失败，回退到软件实现
-        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+        // arm_sin_cos_f32需要角度输入（度），需要将弧度转换为度
+        float theta_degrees = wrapped * (180.0f / PI);
+        arm_sin_cos_f32(theta_degrees, sin_theta_e, cos_theta_e);
         return;
     }
     
@@ -195,7 +223,9 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
         *sin_theta_e = (float)results[1] / Q31_SCALE_F;
     } else {
         // 计算失败，回退到软件实现
-        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+        // arm_sin_cos_f32需要角度输入（度），需要将弧度转换为度
+        float theta_degrees = wrapped * (180.0f / PI);
+        arm_sin_cos_f32(theta_degrees, sin_theta_e, cos_theta_e);
     }
 }
 
@@ -330,155 +360,164 @@ int16_t LPF_Update(LPF_1stOrder_t* filter, int16_t input) {
     return filter->state.sw.lo;
 }
 
-
+// 输入[-1~+1]，输出[0~ARR_PERIOD]
 void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector)
 {
-    // 输出变量初始化
-    if (Tcm1 != NULL) *Tcm1 = 0;
-    if (Tcm2 != NULL) *Tcm2 = 0;
-    if (Tcm3 != NULL) *Tcm3 = 0;
+    // 输出变量初始化为50%占空比（安全状态）
+    if (Tcm1 != NULL) *Tcm1 = ARR_PERIOD / 2;
+    if (Tcm2 != NULL) *Tcm2 = ARR_PERIOD / 2;
+    if (Tcm3 != NULL) *Tcm3 = ARR_PERIOD / 2;
     if (sector != NULL) *sector = 0;
     
- 
+    // 输入验证
     if (!isfinite(Valpha) || !isfinite(Vbeta)) {
         return;
     }
     
-    // 使用宏定义计算PWM周期
-    float Tpwm = 1.0f / PWM_FREQUENCY;  // PWM周期 = 1 / PWM频率
+    // 输入范围说明：
+    // Valpha, Vbeta 是标幺值，范围 [-1, 1]
+    // 其中 ±1.0 对应电压基值 V_base = V_DC/√3
+    // SVPWM 线性调制区：矢量幅值 ≤ 1/√3 ≈ 0.577
+    //
+    // 扇区算法使用归一化的电压矢量，范围 [-1, 1]
+    // 直接使用输入值，不需要额外缩放
+    float alpha = Valpha;
+    float beta = Vbeta;
     
-    float angle = atan2f(Vbeta, Valpha);
-    uint8_t temp_sector = 0;
+    int Sextant = 0;
     
-    // 六分仪判断：将360度分为6个60度扇区
-    if (angle >= -PI/6 && angle < PI/6) {
-        temp_sector = 1;
-    } else if (angle >= PI/6 && angle < PI/2) {
-        temp_sector = 2;
-    } else if (angle >= PI/2 && angle < 5*PI/6) {
-        temp_sector = 3;
-    } else if (angle >= 5*PI/6 || angle < -5*PI/6) {
-        temp_sector = 4;
-    } else if (angle >= -5*PI/6 && angle < -PI/2) {
-        temp_sector = 5;
-    } else if (angle >= -PI/2 && angle < -PI/6) {
-        temp_sector = 6;
+    // 扇区判断（基于参考实现的逻辑）
+    if (beta >= 0.0f) {
+        if (alpha >= 0.0f) {
+            // 象限 I
+            if (INV_SQRT3_F * beta > alpha)
+                Sextant = 2; // 扇区 v2-v3
+            else
+                Sextant = 1; // 扇区 v1-v2
+        } else {
+            // 象限 II
+            if (-INV_SQRT3_F * beta > alpha)
+                Sextant = 3; // 扇区 v3-v4
+            else
+                Sextant = 2; // 扇区 v2-v3
+        }
+    } else {
+        if (alpha >= 0.0f) {
+            // 象限 IV
+            if (-INV_SQRT3_F * beta > alpha)
+                Sextant = 5; // 扇区 v5-v6
+            else
+                Sextant = 6; // 扇区 v6-v1
+        } else {
+            // 象限 III
+            if (INV_SQRT3_F * beta > alpha)
+                Sextant = 4; // 扇区 v4-v5
+            else
+                Sextant = 5; // 扇区 v5-v6
+        }
     }
     
     if (sector != NULL) {
-        *sector = temp_sector;
+        *sector = (uint8_t)Sextant;
     }
     
-    // 电压矢量幅值限制（标幺值范围[-1,1]）
-    float V_mag = sqrtf(Valpha*Valpha + Vbeta*Vbeta);
-    if (V_mag > 1.0f) {
-        // 过调制处理：按比例缩小
-        float scale = 1.0f / V_mag;
-        Valpha *= scale;
-        Vbeta *= scale;
-        V_mag = 1.0f;
-    }
+    // 占空比变量
+    float duty_a = 0.5f, duty_b = 0.5f, duty_c = 0.5f;
     
-    float T1 = 0.0f, T2 = 0.0f;
-    
-    // 根据扇区计算T1和T2（标幺化处理）
-    switch(temp_sector) {
-        case 1:
-            T1 = -Valpha + Vbeta * INV_SQRT3_F;
-            T2 = 2.0f * Vbeta * INV_SQRT3_F;
-            break;
-        case 2:
-            T1 = Valpha + Vbeta * INV_SQRT3_F;
-            T2 = -Valpha + Vbeta * INV_SQRT3_F;
-            break;
-        case 3:
-            T1 = 2.0f * Vbeta * INV_SQRT3_F;
-            T2 = -Valpha - Vbeta * INV_SQRT3_F;
-            break;
-        case 4:
-            T1 = -2.0f * Vbeta * INV_SQRT3_F;
-            T2 = Valpha - Vbeta * INV_SQRT3_F;
-            break;
-        case 5:
-            T1 = -Valpha - Vbeta * INV_SQRT3_F;
-            T2 = -2.0f * Vbeta * INV_SQRT3_F;
-            break;
-        case 6:
-            T1 = Valpha - Vbeta * INV_SQRT3_F;
-            T2 = Valpha + Vbeta * INV_SQRT3_F;
-            break;
+    // 根据扇区计算占空比（使用缩放后的alpha和beta）
+    switch (Sextant) {
+        // 扇区 v1-v2
+        case 1: {
+            // 矢量作用时间
+            float t1 = alpha - INV_SQRT3_F * beta;
+            float t2 = TWO_BY_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_a = (1.0f - t1 - t2) * 0.5f;
+            duty_b = duty_a + t1;
+            duty_c = duty_b + t2;
+        } break;
+        
+        // 扇区 v2-v3
+        case 2: {
+            // 矢量作用时间
+            float t2 = alpha + INV_SQRT3_F * beta;
+            float t3 = -alpha + INV_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_b = (1.0f - t2 - t3) * 0.5f;
+            duty_a = duty_b + t3;
+            duty_c = duty_a + t2;
+        } break;
+        
+        // 扇区 v3-v4
+        case 3: {
+            // 矢量作用时间
+            float t3 = TWO_BY_SQRT3_F * beta;
+            float t4 = -alpha - INV_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_b = (1.0f - t3 - t4) * 0.5f;
+            duty_c = duty_b + t3;
+            duty_a = duty_c + t4;
+        } break;
+        
+        // 扇区 v4-v5
+        case 4: {
+            // 矢量作用时间
+            float t4 = -alpha + INV_SQRT3_F * beta;
+            float t5 = -TWO_BY_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_c = (1.0f - t4 - t5) * 0.5f;
+            duty_b = duty_c + t5;
+            duty_a = duty_b + t4;
+        } break;
+        
+        // 扇区 v5-v6
+        case 5: {
+            // 矢量作用时间
+            float t5 = -alpha - INV_SQRT3_F * beta;
+            float t6 = alpha - INV_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_c = (1.0f - t5 - t6) * 0.5f;
+            duty_a = duty_c + t5;
+            duty_b = duty_a + t6;
+        } break;
+        
+        // 扇区 v6-v1
+        case 6: {
+            // 矢量作用时间
+            float t6 = -TWO_BY_SQRT3_F * beta;
+            float t1 = alpha + INV_SQRT3_F * beta;
+            
+            // PWM 时序
+            duty_a = (1.0f - t6 - t1) * 0.5f;
+            duty_c = duty_a + t1;
+            duty_b = duty_c + t6;
+        } break;
+        
         default:
-            T1 = 0.0f;
-            T2 = 0.0f;
+            duty_a = 0.5f;
+            duty_b = 0.5f;
+            duty_c = 0.5f;
             break;
     }
     
-    // 过调制处理
-    if (T1 + T2 > Tpwm) {
-        float scale = Tpwm / (T1 + T2);
-        T1 = T1 * scale;
-        T2 = T2 * scale;
-    }
+    // 结果验证和饱和限制
+    duty_a = foc_math_saturate(duty_a, 0.0f, 1.0f);
+    duty_b = foc_math_saturate(duty_b, 0.0f, 1.0f);
+    duty_c = foc_math_saturate(duty_c, 0.0f, 1.0f);
     
-    // 7段式PWM生成（与原有实现保持一致）
-    float ta = (Tpwm - (T1 + T2)) / 4.0f;
-    float tb = ta + T1 / 2.0f;
-    float tc = tb + T2 / 2.0f;
-    
-    // 输出调制信号
-    float temp_Tcm1 = 0.0f, temp_Tcm2 = 0.0f, temp_Tcm3 = 0.0f;
-    
-    switch(temp_sector) {
-        case 1:
-            temp_Tcm1 = tb;
-            temp_Tcm2 = ta;
-            temp_Tcm3 = tc;
-            break;
-        case 2:
-            temp_Tcm1 = ta;
-            temp_Tcm2 = tc;
-            temp_Tcm3 = tb;
-            break;
-        case 3:
-            temp_Tcm1 = ta;
-            temp_Tcm2 = tb;
-            temp_Tcm3 = tc;
-            break;
-        case 4:
-            temp_Tcm1 = tc;
-            temp_Tcm2 = tb;
-            temp_Tcm3 = ta;
-            break;
-        case 5:
-            temp_Tcm1 = tc;
-            temp_Tcm2 = ta;
-            temp_Tcm3 = tb;
-            break;
-        case 6:
-            temp_Tcm1 = tb;
-            temp_Tcm2 = tc;
-            temp_Tcm3 = ta;
-            break;
-        default:
-            temp_Tcm1 = Tpwm / 2.0f;
-            temp_Tcm2 = Tpwm / 2.0f;
-            temp_Tcm3 = Tpwm / 2.0f;
-            break;
-    }
-    
-    // 归一化处理，与SVPWM函数保持一致
-    const float Tcm1_pu = foc_math_saturate(2.0f * temp_Tcm1 / Tpwm, 0.0f, 1.0f);
-    const float Tcm2_pu = foc_math_saturate(2.0f * temp_Tcm2 / Tpwm, 0.0f, 1.0f);
-    const float Tcm3_pu = foc_math_saturate(2.0f * temp_Tcm3 / Tpwm, 0.0f, 1.0f);
-
     // 转换为定时器计数值
     if (Tcm1 != NULL) {
-        *Tcm1 = foc_math_pu_to_ticks(Tcm1_pu);
+        *Tcm1 = foc_math_pu_to_ticks(duty_a);
     }
     if (Tcm2 != NULL) {
-        *Tcm2 = foc_math_pu_to_ticks(Tcm2_pu);
+        *Tcm2 = foc_math_pu_to_ticks(duty_b);
     }
     if (Tcm3 != NULL) {
-        *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
+        *Tcm3 = foc_math_pu_to_ticks(duty_c);
     }
 }
