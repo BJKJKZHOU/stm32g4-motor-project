@@ -79,9 +79,9 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
         g_electrical_angle += 2.0f * PI;
     }
     
-    // 3. 计算正弦和余弦值
-    float sin_theta = sinf(g_electrical_angle);
-    float cos_theta = cosf(g_electrical_angle);
+    // 3. 计算正弦和余弦值（使用CORDIC硬件加速）
+    float sin_theta, cos_theta;
+    Sine_Cosine(g_electrical_angle, &sin_theta, &cos_theta);
     
     // 4. 生成三相120度正弦波（标幺值范围[-1, 1]）
     float U_phase = sin_theta;                                   // U相：sin(θ)

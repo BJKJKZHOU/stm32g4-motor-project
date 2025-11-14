@@ -34,8 +34,6 @@ target_include_directories(stm32cubemx INTERFACE
 )
 
 target_sources(stm32cubemx INTERFACE
-    ../../Drivers/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
-    ../../Drivers/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_f32.c
     ../../Core/Src/main.c
     ../../Core/Src/gpio.c
     ../../Core/Src/app_threadx.c
