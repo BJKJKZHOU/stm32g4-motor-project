@@ -1,8 +1,8 @@
 /*============================================================================
-  * @file           : vofa_com_threadx.c
-  * @brief          : VOFA Communication ThreadX implementation file
-  * 
-  * 
+    File Name     : vofa_com_threadx.c
+    Description   : vofa串口调试助手的通信线程·
+    Author        : ZHOUHENG
+    Date          : 2025-11-03  
     ----------------------------------------------------------------------  
     
     

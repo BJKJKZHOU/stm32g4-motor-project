@@ -1,10 +1,10 @@
 /*============================================================================
-  File Name          : vofa_com_threadx.h
-  Description        : Header for vofa_com_threadx.c file.
-                       This file contains the common defines of the application.
-                      vofa串口调试助手的通信线程·
+    File Name     : vofa_com_threadx.h
+    Description   : vofa串口调试助手的通信线程·
+    Author        : ZHOUHENG
+    Date          : 2025-11-03  
     ----------------------------------------------------------------------  
-    
+    使用 plot 和 plot stop 控制发送和停止发送数据。
     
 *=============================================================================
 */

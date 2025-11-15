@@ -100,9 +100,9 @@ static void Current_ADCToPhysical(uint16_t adc_val, float *current)
  */
 static void Current_PhysicalToPU(float current, float *current_pu)
 {
-    // 使用归一化模块的基准电流进行标幺化
-    extern NormalizationParams_t g_NormParams; // FIXME
-    *current_pu = current / g_NormParams.I_base;
+    // 使用归一化模块进行标幺化转换
+    // TODO: 需要确定使用哪个电机ID，这里暂时使用0
+    *current_pu = Normalization_ToPerUnit(0, NORMALIZE_CURRENT, current);
 }
 
 /**
