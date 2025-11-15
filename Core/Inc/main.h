@@ -63,6 +63,15 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 #define ARR_PERIOD ((TIM_CLK_MHz * 1000000 / PWM_FREQUENCY) / 2 ) // =4250
 
+/* 用于在CCM中执行的代码 */
+#define CCMRAM_FUNC __attribute__((section(".ccmtext")))
+
+/* 用于存放在CCM中的数据 */
+#define CCMRAM_DATA __attribute__((section(".ccmram")))
+
+/* 用于存放在CCM中的常量数据 */
+#define CCMRAM_CONST __attribute__((section(".ccmram"))) const
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

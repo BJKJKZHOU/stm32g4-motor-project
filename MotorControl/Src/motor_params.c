@@ -8,12 +8,13 @@
 *=============================================================================
 */
 #include "motor_params.h"
+#include "usart.h"
 
 #include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
+
 #include <string.h>
-#include "usart.h"
+
 
 // 定义电机参数数组，暂定两个电机
 Motor_Params_t motor_params[motors_number];

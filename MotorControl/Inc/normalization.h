@@ -77,9 +77,6 @@
 #ifndef NORMALIZATION_H
 #define NORMALIZATION_H
 
-#include "motor_params.h"
-#include "arm_math.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 

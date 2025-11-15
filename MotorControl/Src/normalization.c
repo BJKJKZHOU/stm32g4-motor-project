@@ -10,8 +10,9 @@
 
 
 #include "normalization.h"
+#include "motor_params.h"
+#include "arm_math.h"
 
-#include <math.h>
 #include <string.h>
 
 #define NORMALIZATION_CLAMP_MIN (-1.0f)
