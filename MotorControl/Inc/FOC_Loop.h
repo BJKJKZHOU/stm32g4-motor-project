@@ -12,7 +12,6 @@
 #ifndef FOC_LOOP_H
 #define FOC_LOOP_H
 
-#include "FOC_Loop.h"
 #include "FOC_math.h"
 #include "main.h"
 #include <math.h>

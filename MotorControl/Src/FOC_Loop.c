@@ -19,7 +19,7 @@ static float g_electrical_angle = 0.0f;
 
 // 电机参数 - 需要根据实际电机调整
 #define MOTOR_POLE_PAIRS 6        // 电机极对数
-#define VOLTAGE_AMPLITUDE 0.9f    // 电压幅值（标幺值） 
+#define VOLTAGE_AMPLITUDE 1.0f    // 电压幅值（标幺值），与SVPWM_minmax使用相同的定义 
 
 #define SAMPLE_TIME 0.00005f     // 采样时间 50us (20kHz 中断频率)
 
@@ -31,35 +31,8 @@ volatile float g_debug_frequency = 0.0f;  // 当前电频率
 
 volatile uint8_t sector = 0;
 
-// 用于调试 - 记录TIM1中断频率
-volatile uint32_t g_tim1_interrupt_count = 0;     // TIM1中断计数
-volatile float g_tim1_interrupt_freq_hz;      // TIM1中断频率 (Hz)
-
-static uint32_t g_tim1_last_tick = 0;  // 内部使用，不导出
-
-//中断频率计算函数
-void FOC_UpdateInterruptFrequency(void)
-{
-    uint32_t current_tick = HAL_GetTick();
-    uint32_t tick_diff = current_tick - g_tim1_last_tick;
-    
-    // 时间差至少1ms才计算频率（避免除零和噪声）
-    if (tick_diff >= 1) {
-        // 计算频率：频率 = 中断次数 / 时间间隔(秒)
-        g_tim1_interrupt_freq_hz = (float)g_tim1_interrupt_count / (tick_diff * 0.001f);
-        
-        // 只更新时间戳，不重置计数器（计数器需要发送到上位机）
-        g_tim1_last_tick = current_tick;
-        g_tim1_interrupt_count = 0;
-    }
-}
-
 void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
 {
-    g_tim1_interrupt_count++;
-    
-    // 更新中断频率计算 
-    FOC_UpdateInterruptFrequency();
 
     // 参数检查
     if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
@@ -106,9 +79,9 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
     Inverse_Park_Transform(U_d_pu, U_q_pu, sin_theta, cos_theta, &U_alpha_pu, &U_beta_pu);
     
     // 9. SVPWM调制：将αβ电压转换为PWM占空比
-    SVPWM_minmax(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3);
-    
-    // 调试信息更新
+    //SVPWM_minmax(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3);
+    SVPWM_SectorBased(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3, &sector);
+    // 调试信息更新 
     g_debug_angle = g_electrical_angle;
     g_debug_sin = sin_theta;
     g_debug_cos = cos_theta;

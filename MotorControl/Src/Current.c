@@ -150,5 +150,7 @@ CCMRAM_FUNC void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
 
         // TODO: 在此处调用FOC控制循环或将数据传递给控制任务
         // 例如：FOC_CurrentLoop(&g_CurrentSample);
+
+        
     }
 }

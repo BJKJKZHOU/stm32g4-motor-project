@@ -10,8 +10,9 @@
 */
 
 #include "vofa_com_threadx.h"
+#include "Current.h"
 
-#include <math.h>
+
 
 // 声明外部全局变量 - 来自main.c中断
 extern volatile uint32_t g_Tcm1;
@@ -27,6 +28,9 @@ extern volatile uint8_t sector ;
 
 extern volatile uint32_t g_tim1_interrupt_count;
 extern volatile float g_tim1_interrupt_freq_hz;
+
+// 声明外部全局变量 - 来自电流采样模块
+extern CurrentSample_t g_CurrentSample;
 
 
 TX_THREAD vofa_com_thread;
@@ -95,6 +99,12 @@ void vofa_com_thread_entry(ULONG thread_input)
   Vofa_SetChannelName(RECEIVING_CHANNEL_10, "TEST_DATA_1");
   Vofa_SetChannelName(RECEIVING_CHANNEL_11, "TEST_DATA_2"); 
   Vofa_SetChannelName(RECEIVING_CHANNEL_12, "TEST_DATA_3");
+  
+  // 设置电流采样数据通道名称
+  Vofa_SetChannelName(RECEIVING_CHANNEL_13, "Ia_Current");
+  Vofa_SetChannelName(RECEIVING_CHANNEL_14, "Ib_Current");
+  Vofa_SetChannelName(RECEIVING_CHANNEL_15, "Ic_Current");
+  
 
   HAL_TIM_Base_Start_IT(&htim2);
 
@@ -112,7 +122,7 @@ void vofa_com_thread_entry(ULONG thread_input)
     }
      
 
-    tx_thread_sleep(1);
+    //tx_thread_sleep(1);
   }
 
 
@@ -131,10 +141,9 @@ void Vofa_UpdateTestData(void)
   test_data[5] = g_debug_sin;
   test_data[6] = g_debug_cos;
   test_data[7] = (float)sector;
-  test_data[8] = g_tim1_interrupt_freq_hz;
-  test_data[9] = g_tim1_interrupt_count;
-  test_data[10] =0.0;
-  
+  test_data[8] = g_CurrentSample.current_abc[0];  // Ia相电流物理值 (A)
+  test_data[9] = g_CurrentSample.current_abc[1];  // Ib相电流物理值 (A)
+  test_data[10] = g_CurrentSample.current_abc[2];  // Ic相电流物理值 (A)
 
 }
 
