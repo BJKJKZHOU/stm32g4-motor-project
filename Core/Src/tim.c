@@ -89,7 +89,10 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 235;
+  // CH4用于触发ADC采样，初始设置在ARR-300位置
+  // 运行时会由Update_ADC_Trigger_Point()函数动态调整
+  // Period=4249，ARR-300=3949，提供600个计数的采样窗口（向上+向下）
+  sConfigOC.Pulse = 3949;  // TRIGGER_HIGH_SIDE = ARR_PERIOD - 300
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();

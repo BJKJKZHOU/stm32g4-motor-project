@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
 
 /* User configuration params */
 #define VOFA_BUFFER_SIZE 128	   // Send/Receive data buffer length

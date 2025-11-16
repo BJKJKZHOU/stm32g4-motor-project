@@ -28,6 +28,8 @@ extern volatile float g_debug_frequency;  // 当前电频率 (rad/s)
 extern volatile uint32_t g_tim1_interrupt_count;     // TIM1中断计数
 extern volatile float g_tim1_interrupt_freq_hz;      // TIM1中断频率 (Hz)
 
+
+
 // 开环测试函数
 // 输入:
 // - frequency_rad_s: 电频率参考值，单位 rad/s
@@ -38,6 +40,8 @@ extern volatile float g_tim1_interrupt_freq_hz;      // TIM1中断频率 (Hz)
 // 3. 生成三相正弦波（120°相位差）
 // 4. 完整的FOC变换流程（Clark→Park→逆Park→SVPWM）
 void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
+
+
 
 
 

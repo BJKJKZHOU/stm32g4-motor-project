@@ -4,6 +4,7 @@
 */
 
 #include "Vofa.h"
+#include <string.h>
 
 // static const uint8_t cmdTail[] = VOFA_CMD_TAIL; //帧头未使用
 

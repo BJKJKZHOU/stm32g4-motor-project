@@ -43,7 +43,6 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "adc.h"
 
 /* 电流采样相关宏定义 --------------------------------------------------------*/
 #define CURRENT_SAMPLE_CHANNELS     3       // 三相电流采样通道数
@@ -72,6 +71,28 @@ void Current_Init(void);
 void Current_GetABC(float *ia, float *ib, float *ic);
 void Current_GetPU(float *ia_pu, float *ib_pu, float *ic_pu);
 uint16_t* Current_GetRawADC(void);
+
+
+// ADC电流采样触发点动态调整函数
+// 输入:
+// - duty_ch1, duty_ch2, duty_ch3: 三相PWM占空比计数值 (0-ARR_PERIOD)
+// 功能：
+// 1. 分析三相占空比，找到最小占空比（下管导通时间最长）
+// 2. 根据占空比范围选择最佳ADC触发时机
+// 3. 动态调整TIM1_CH4比较值以优化电流采样时序
+// 4. 确保ADC采样在下管导通期间完成
+// 策略：
+// - 占空比 < 90%: 在ARR附近触发（高侧采样）
+// - 占空比 90-98%: 在低侧动态调整触发点
+// - 占空比 > 98%: 降级采样或跳过
+
+// ADC触发点调试变量
+extern volatile uint32_t g_adc_trigger_point;        // 当前ADC触发点
+extern volatile uint32_t g_min_duty;                 // 最小占空比
+extern volatile uint32_t g_max_duty;                 // 最大占空比
+extern volatile uint8_t g_trigger_strategy;          // 触发策略：0=高侧，1=低侧，2=降级
+
+void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t duty_ch3);
 
 #ifdef __cplusplus
 }

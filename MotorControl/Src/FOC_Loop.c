@@ -15,6 +15,7 @@
 #include "FOC_Loop.h"
 #include "main.h"
 #include "FOC_math.h"
+
 #include <math.h>
 
 // 全局变量 - 用于跟踪电角度
@@ -90,3 +91,4 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
     g_debug_cos = cos_theta;
     g_debug_frequency = frequency_rad_s;
 }
+

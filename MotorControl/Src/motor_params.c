@@ -1,5 +1,5 @@
 /*============================================================================
-    File Name     : motor_params.h
+    File Name     : motor_params.c
     Description   : 电机参数模块 - 包含电机参数相关的函数
     Author        : ZHOUHENG
     Date          : 2025-11-03

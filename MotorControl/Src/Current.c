@@ -12,6 +12,7 @@
 #include "Current.h"
 #include "Normalization.h"
 #include "motor_params.h"
+#include "tim.h"
 #include "adc.h"  // 双ADC模式需要访问hadc1和hadc2
 /* 全局变量定义 --------------------------------------------------------------*/
 CurrentSample_t g_CurrentSample = {0};
@@ -113,6 +114,107 @@ static void Current_PhysicalToPU(float current, float *current_pu)
 
     *current_pu = Normalization_ToPerUnit(active_motor_id, NORMALIZE_CURRENT, current);
 }
+
+// ============================================================================
+// ADC电流采样触发点动态调整实现
+// ============================================================================
+
+// 调试变量 - 用于监控触发点调整
+volatile uint32_t g_adc_trigger_point = TRIGGER_HIGH_SIDE;  // 当前ADC触发点
+volatile uint32_t g_min_duty = 0;                           // 最小占空比
+volatile uint32_t g_max_duty = 0;                           // 最大占空比
+volatile uint8_t g_trigger_strategy = 0;                    // 触发策略：0=高侧，1=低侧，2=降级
+
+/**
+ * @brief ADC电流采样触发点动态调整函数
+ *
+ * @param duty_ch1 通道1占空比计数值 (0-ARR_PERIOD)
+ * @param duty_ch2 通道2占空比计数值 (0-ARR_PERIOD)
+ * @param duty_ch3 通道3占空比计数值 (0-ARR_PERIOD)
+ *
+ * @note 中心对齐PWM模式下的采样时序：
+ *       - 上管导通：CNT < CCR（考虑死区）
+ *       - 下管导通：CNT > CCR + 死区 或 CNT < CCR - 死区
+ *       - ADC触发后需要约415个计数完成16倍过采样
+ *       - 触发点在ARR-300时，可用采样窗口为600个计数（向上+向下）
+ *
+ * @note 采样策略：
+ *       1. 找到三相中最小占空比（下管导通时间最长）
+ *       2. 占空比 < 90%：固定在ARR-300触发（高侧采样）
+ *       3. 占空比 90-98%：动态调整到低侧采样
+ *       4. 占空比 > 98%：降级采样或跳过
+ */
+void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t duty_ch3)
+{
+    // 1. 找到三相中的最小和最大占空比
+    uint32_t min_duty = duty_ch1;
+    uint32_t max_duty = duty_ch1;
+
+    if (duty_ch2 < min_duty) min_duty = duty_ch2;
+    if (duty_ch3 < min_duty) min_duty = duty_ch3;
+
+    if (duty_ch2 > max_duty) max_duty = duty_ch2;
+    if (duty_ch3 > max_duty) max_duty = duty_ch3;
+
+    // 保存到调试变量
+    g_min_duty = min_duty;
+    g_max_duty = max_duty;
+
+    uint32_t trigger_point;
+
+    // 2. 根据最小占空比选择触发策略
+    if (min_duty < DUTY_THRESHOLD_HIGH) {
+        // ========== 策略1：高侧采样（占空比 < 90%） ==========
+        // 在ARR附近触发，此时所有相的下管都有足够导通时间
+        trigger_point = TRIGGER_HIGH_SIDE;  // ARR - 300
+        g_trigger_strategy = 0;
+
+    } else if (min_duty < DUTY_CRITICAL_HIGH) {
+        // ========== 策略2：低侧动态采样（占空比 90-98%） ==========
+        // 在低侧（接近0）采样，选择最小占空比相的下管导通中点
+        // 下管导通区间：[0, min_duty - 死区)
+        // 采样需要415个计数，所以触发点要留出足够裕量
+
+        uint32_t low_side_window = min_duty - TIM1_DEADTIME;  // 下管导通窗口大小
+
+        if (low_side_window > (ADC_SAMPLE_TIME + 100)) {
+            // 有足够空间，在窗口中间触发
+            trigger_point = (low_side_window - ADC_SAMPLE_TIME) / 2;
+        } else {
+            // 空间不足，尽量靠前触发
+            trigger_point = DUTY_THRESHOLD_LOW / 2;  // 约212
+        }
+
+        g_trigger_strategy = 1;
+
+    } else {
+        // ========== 策略3：极高占空比降级处理（占空比 > 98%） ==========
+        // 下管导通时间极短，无法保证采样质量
+        // 选项A：保持上一次触发点（惯性采样）
+        // 选项B：强制在低侧采样（可能采样不完整）
+        // 选项C：跳过本次采样（设置触发点为0，禁用触发）
+
+        // 这里选择选项B：强制低侧采样
+        trigger_point = DUTY_THRESHOLD_LOW / 2;  // 约212
+        g_trigger_strategy = 2;
+
+        // 可选：如果需要跳过采样，取消下面的注释
+        // trigger_point = 0;  // 禁用触发
+    }
+
+    // 3. 边界检查：确保触发点在合法范围内
+    if (trigger_point > ARR_PERIOD) {
+        trigger_point = TRIGGER_HIGH_SIDE;  // 回退到默认值
+    }
+
+    // 4. 更新TIM1_CH4比较值（ADC触发点）
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, trigger_point);
+
+    // 5. 保存到调试变量
+    g_adc_trigger_point = trigger_point;
+}
+
+
 
 /**
  * @brief  ADC注入转换完成回调函数（双ADC同步模式）

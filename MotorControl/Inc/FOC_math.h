@@ -140,6 +140,7 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);
 
+// 谐波注入SPWM实现SVPWM 带扇区输出
 void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector);
 
                     
