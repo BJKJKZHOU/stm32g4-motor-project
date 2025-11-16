@@ -91,7 +91,7 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 // Vofa通信线程入口函数
 void vofa_com_thread_entry(ULONG thread_input)
 {
-
+  UNUSED(thread_input);
 
   Vofa_STM32G474_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
 
@@ -157,3 +157,4 @@ void Vofa_Plot_Stop(void)
 {
     vofa_justfloat_enabled = 0;
 }
+

@@ -101,13 +101,13 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
     return ret;
   }
   
-  ret = TEST_ThreadX_Init(memory_ptr); // 初始化测试线�?
+  ret = TEST_ThreadX_Init(memory_ptr); // 初始化测试线�?
   if (ret != TX_SUCCESS)
   {
     return ret;
   }
 
-  ret = MOTOR_ThreadX_Init(memory_ptr); // 初始化电机控制线�?
+  ret = MOTOR_ThreadX_Init(memory_ptr); // 初始化电机控制线�?
   if (ret != TX_SUCCESS)
   {
     return ret;
@@ -125,6 +125,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
 void tx_app_thread_entry(ULONG thread_input)
 {
   /* USER CODE BEGIN tx_app_thread_entry */
+  UNUSED(thread_input);
 
   /* USER CODE END tx_app_thread_entry */
 }

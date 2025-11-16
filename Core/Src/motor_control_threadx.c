@@ -40,6 +40,7 @@ UINT MOTOR_ThreadX_Init(VOID *memory_ptr)
 // 电机控制线程入口
 void motor_control_thread_entry(ULONG thread_input)
 {
+  UNUSED(thread_input);
   // 启动TIM1的更新中断（用于FOC控制循环）
   
 
@@ -53,3 +54,4 @@ void motor_control_thread_entry(ULONG thread_input)
     tx_thread_sleep(1);    
   }
 }
+

@@ -115,8 +115,7 @@
 #ifndef FOC_MATH_H
 #define FOC_MATH_H
 
-#include "main.h"
-#include "arm_math.h"
+#include <stdint.h> 
 #include <stdbool.h>
 
 #ifdef __cplusplus

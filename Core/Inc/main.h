@@ -61,7 +61,9 @@ void Error_Handler(void);
 #define PWM_FREQUENCY 20000
 
 /* USER CODE BEGIN Private defines */
-#define ARR_PERIOD ((TIM_CLK_MHz * 1000000 / PWM_FREQUENCY) / 2 ) // =4250
+#define ARR_PERIOD ((uint32_t)((TIM_CLK_MHz * 1000000.0f / PWM_FREQUENCY) / 2.0f)) // =4250
+
+#define PI 3.14159265358979323846f
 
 /* 用于在CCM中执行的代码 */
 #define CCMRAM_FUNC __attribute__((section(".ccmtext")))

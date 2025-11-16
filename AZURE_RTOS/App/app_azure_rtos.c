@@ -80,6 +80,7 @@ static TX_BYTE_POOL fx_app_byte_pool;
 VOID tx_application_define(VOID *first_unused_memory)
 {
   /* USER CODE BEGIN  tx_application_define_1*/
+  UNUSED(first_unused_memory);
 
   /* USER CODE END  tx_application_define_1 */
 #if (USE_STATIC_ALLOCATION == 1)

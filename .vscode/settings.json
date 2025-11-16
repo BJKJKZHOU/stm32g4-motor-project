@@ -66,11 +66,12 @@
         "USE_HAL_DRIVER"
     ],
     
-    // Clangd配置 - 简化版本
+    // Clangd配置 
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}/build/Debug",
         "--background-index",
-        "--query-driver=E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe"
+        "--query-driver=E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
+
     ],
     "clangd.path": "D:/Program Files/LLVM/bin/clangd.exe",
     

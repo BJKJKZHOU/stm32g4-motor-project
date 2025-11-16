@@ -12,9 +12,7 @@
 #ifndef FOC_LOOP_H
 #define FOC_LOOP_H
 
-#include "FOC_math.h"
-#include "main.h"
-#include <math.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,3 +60,4 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
 #endif
 
 #endif /* FOC_LOOP_H */
+

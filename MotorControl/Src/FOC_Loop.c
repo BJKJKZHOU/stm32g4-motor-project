@@ -13,6 +13,9 @@
 */
 
 #include "FOC_Loop.h"
+#include "main.h"
+#include "FOC_math.h"
+#include <math.h>
 
 // 全局变量 - 用于跟踪电角度
 static float g_electrical_angle = 0.0f;
@@ -59,7 +62,7 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
     // 4. 生成三相120度正弦波（标幺值范围[-1, 1]）
     float U_phase = sin_theta;                                   // U相：sin(θ)
     float V_phase = sinf(g_electrical_angle - 2.0f * PI / 3.0f); // V相：sin(θ - 120°)
-    float W_phase = sinf(g_electrical_angle + 2.0f * PI / 3.0f); // W相：sin(θ + 120°)
+    //float W_phase = sinf(g_electrical_angle + 2.0f * PI / 3.0f); // W相：sin(θ + 120°)
     
     // 5. Clark变换：将三相电流转换为αβ坐标系
     float I_alpha, I_beta;
@@ -80,7 +83,7 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
     
     // 9. SVPWM调制：将αβ电压转换为PWM占空比
     //SVPWM_minmax(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3);
-    SVPWM_SectorBased(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3, &sector);
+    SVPWM_SectorBased(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3, (uint8_t *)&sector);
     // 调试信息更新 
     g_debug_angle = g_electrical_angle;
     g_debug_sin = sin_theta;

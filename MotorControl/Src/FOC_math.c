@@ -9,16 +9,13 @@
 */
 
 #include "FOC_math.h"
+#include "main.h"
+#include "arm_math.h"
 
 #include <math.h>
-#include <stdbool.h>
 #include <limits.h>
 
 #include "cordic.h"
-
-#ifndef PI
-#define PI 3.14159265358979323846f
-#endif
 
 
 #define INV_SQRT3_F           (0.5773502691896258f)      // 1/√3
@@ -129,7 +126,6 @@ void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *T
     // 其中 ±1.0 对应电压基值 V_base = V_DC/√3
     // SVPWM 线性调制区：矢量幅值 ≤ 1/√3 ≈ 0.577
     // 过调制区：0.577 < 幅值 ≤ 1.0
-    
     // 逆Clarke变换：将αβ坐标系的电压转换为三相电压（标幺值）
     // 标准逆Clarke变换公式（等幅值变换）：
     // U_a = U_alpha
@@ -140,7 +136,6 @@ void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *T
     const float U_b = (-0.5f * U_alpha_pu) + (SQRT3_OVER_TWO_F * U_beta_pu);
     const float U_c = (-0.5f * U_alpha_pu) - (SQRT3_OVER_TWO_F * U_beta_pu);
 
-    // 计算零序分量（马鞍波的关键）
     // 零序分量 = -(max + min) / 2
     // 这会产生三次谐波注入，形成马鞍波形状，提升电压利用率约15%
     const float U_zero = foc_math_zero_sequence(U_a, U_b, U_c);

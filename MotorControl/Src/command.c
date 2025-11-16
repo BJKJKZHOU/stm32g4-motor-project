@@ -9,6 +9,10 @@
 */
 #include "command.h"
 
+#include "motor_params.h"
+#include "normalization.h"
+
+#include <stdint.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
