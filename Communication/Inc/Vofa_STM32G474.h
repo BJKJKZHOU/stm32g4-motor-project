@@ -4,7 +4,6 @@
 #include "Vofa.h"
 #include "stm32g4xx_hal.h"
 
-
 extern UART_HandleTypeDef hlpuart1;
 
 // 双缓冲接收配置
@@ -40,3 +39,4 @@ uint8_t Vofa_SetChannelName(uint8_t channel_id, const char *new_name);
 const char *Vofa_GetChannelName(uint8_t channel_id);
 
 #endif // VOFA_STM32G474_H
+

@@ -1,7 +1,6 @@
 
 #include "Vofa_STM32G474.h"
 
-
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>

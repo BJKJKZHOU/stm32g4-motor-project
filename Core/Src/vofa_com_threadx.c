@@ -128,8 +128,6 @@ void vofa_com_thread_entry(ULONG thread_input)
 
 }
 
-
-
 void Vofa_UpdateTestData(void)
 {
   test_data[0] = 0.0f;
