@@ -60,3 +60,5 @@ CoverageReport/
 
 test_cpputest/coverage_report/html/Modules/
 test_cpputest/coverage_report/html/third-party/
+
+.claude/verification-report.md

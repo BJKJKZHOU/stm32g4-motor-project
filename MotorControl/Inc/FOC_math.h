@@ -115,8 +115,7 @@
 #ifndef FOC_MATH_H
 #define FOC_MATH_H
 
-#include "main.h"
-#include "arm_math.h"
+#include <stdint.h> 
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -132,7 +131,8 @@ extern "C" {
 void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float cos_theta,
                            float *U_alpha_pu, float *U_beta_pu);
 
-void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
+// 谐波注入SPWM实现SVPWM
+void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
 
 bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu);
 
@@ -141,20 +141,6 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);
 
 void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector);
-
-
-/* Q31 fixed-point (1.31) variants */
-bool Inverse_Park_TransformQ31(q31_t U_d_q31, q31_t U_q_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
-                               q31_t *U_alpha_q31, q31_t *U_beta_q31);
-
-bool SVPWM_Q31(q31_t U_alpha_q31, q31_t U_beta_q31, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
-
-bool Clarke_TransformQ31(q31_t ia_q31, q31_t ib_q31, q31_t *I_alpha_q31, q31_t *I_beta_q31);
-
-void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31);
-
-bool Park_TransformQ31(q31_t I_alpha_q31, q31_t I_beta_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
-                       q31_t *I_d_q31, q31_t *I_q_q31);
 
                     
 /*  低通滤波器模块 - 支持Hz和rad/s频率单位，单位在内部处理
@@ -170,13 +156,7 @@ typedef struct {
     float state;  /* 滤波器状态变量 y[n-1] */
 } LPF_Float_t;
 
-typedef struct {
-    q31_t state;  /* Q31格式滤波器状态变量 */
-} LPF_Q31_t;
-
-float LPF_Filter(LPF_Float_t *filter, float input, float cutoff_freq, float sample_time, bool unit);
-q31_t LPF_FilterQ31(LPF_Q31_t *filter, q31_t input, float cutoff_freq, float sample_time, bool unit);
-
+float LPF_Filter(LPF_Float_t *filter, float input, float cutoff_freq, float sample_time, bool unit );
 
 
 // ===================================================================================

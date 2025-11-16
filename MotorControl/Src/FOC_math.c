@@ -9,114 +9,22 @@
 */
 
 #include "FOC_math.h"
+#include "main.h"
+#include "arm_math.h"
 
 #include <math.h>
-#include <stdbool.h>
 #include <limits.h>
 
 #include "cordic.h"
 
-#ifndef PI
-#define PI 3.14159265358979323846f
-#endif
 
-
-#define INV_SQRT3_F           (0.5773502691896258f)
-#define SQRT3_OVER_TWO_F      (0.8660254037844386f)
+#define INV_SQRT3_F           (0.5773502691896258f)      // 1/√3
+#define SQRT3_OVER_TWO_F      (0.8660254037844386f)      // √3/2
+#define TWO_BY_SQRT3_F        (1.1547005383792515f)      // 2/√3
 #define TWO_PI_F              (2.0f * PI)
 
 #define Q31_SCALE_F           (2147483647.0f)
-#define Q31_MAX               ((q31_t)0x7FFFFFFF)
-#define Q31_MIN               ((q31_t)0x80000000)
-#define Q31_HALF              ((q31_t)0x40000000)
-#define Q31_NEG_HALF          ((q31_t)0xC0000000)
-#define INV_SQRT3_Q31         ((q31_t)0x49E69D16)
-#define SQRT3_OVER_TWO_Q31    ((q31_t)0x6ED9EBA1)
 
-
-static inline q31_t foc_math_q31_saturate_int64(int64_t value)
-{
-    if (value > (int64_t)INT32_MAX) {
-        return (q31_t)INT32_MAX;
-    }
-    if (value < (int64_t)INT32_MIN) {
-        return (q31_t)INT32_MIN;
-    }
-    return (q31_t)value;
-}
-
-static q31_t foc_math_q31_add(q31_t a, q31_t b)
-{
-    int64_t sum = (int64_t)a + (int64_t)b;
-    return foc_math_q31_saturate_int64(sum);
-}
-
-static q31_t foc_math_q31_sub(q31_t a, q31_t b)
-{
-    int64_t diff = (int64_t)a - (int64_t)b;
-    return foc_math_q31_saturate_int64(diff);
-}
-
-static q31_t foc_math_q31_mul(q31_t a, q31_t b)
-{
-    int64_t product = (int64_t)a * (int64_t)b;
-    product >>= 31;
-    return foc_math_q31_saturate_int64(product);
-}
-
-static q31_t foc_math_q31_clamp(q31_t value, q31_t min_value, q31_t max_value)
-{
-    if (value > max_value) {
-        return max_value;
-    }
-    if (value < min_value) {
-        return min_value;
-    }
-    return value;
-}
-
-static inline float foc_math_q31_to_float(q31_t value)
-{
-    return (float)value / Q31_SCALE_F;
-}
-
-static q31_t foc_math_q31_from_float(float value)
-{
-    if (!isfinite(value)) {
-        return 0;
-    }
-    if (value >= (float)(Q31_MAX - 1) / Q31_SCALE_F) {
-        return Q31_MAX;
-    }
-    if (value <= -1.0f) {
-        return Q31_MIN;
-    }
-    float scaled = value * Q31_SCALE_F;
-    if (scaled > (float)INT32_MAX) {
-        return Q31_MAX;
-    }
-    if (scaled < (float)INT32_MIN) {
-        return Q31_MIN;
-    }
-    return (q31_t)scaled;
-}
-
-static bool foc_math_q31_is_unit(q31_t value)
-{
-    return value <= Q31_MAX && value >= Q31_MIN;
-}
-
-static inline q31_t foc_math_q31_max3(q31_t a, q31_t b, q31_t c)
-{
-    q31_t max_ab = (a > b) ? a : b;
-    return (max_ab > c) ? max_ab : c;
-}
-
-static inline q31_t foc_math_q31_min3(q31_t a, q31_t b, q31_t c)
-{
-    q31_t min_ab = (a < b) ? a : b;
-    return (min_ab < c) ? min_ab : c;
-}
 
 // 作用：数值饱和限制，确保值在指定范围内 (Value saturation: ensures value is within specified range)
 static float foc_math_saturate(float value, float min_value, float max_value)
@@ -199,33 +107,9 @@ void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float c
     *U_beta_pu  = U_d_pu * sin_theta + U_q_pu * cos_theta;
 }
 
-bool Inverse_Park_TransformQ31(q31_t U_d_q31, q31_t U_q_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
-                               q31_t *U_alpha_q31, q31_t *U_beta_q31)
-{
-    if (U_alpha_q31 == NULL || U_beta_q31 == NULL) {
-        return false;
-    }
-
-    if (!foc_math_q31_is_unit(sin_theta_q31) || !foc_math_q31_is_unit(cos_theta_q31)) {
-        *U_alpha_q31 = 0;
-        *U_beta_q31 = 0;
-        return false;
-    }
-
-    /* 使用CORDIC优化的逆Park变换Q31版本 */
-    /* 正弦余弦值来自CORDIC硬件加速，这里直接进行Q31矩阵乘法 */
-    q31_t term_d_cos = foc_math_q31_mul(U_d_q31, cos_theta_q31);
-    q31_t term_q_sin = foc_math_q31_mul(U_q_q31, sin_theta_q31);
-    q31_t term_d_sin = foc_math_q31_mul(U_d_q31, sin_theta_q31);
-    q31_t term_q_cos = foc_math_q31_mul(U_q_q31, cos_theta_q31);
-
-    *U_alpha_q31 = foc_math_q31_sub(term_d_cos, term_q_sin);
-    *U_beta_q31  = foc_math_q31_add(term_d_sin, term_q_cos);
-
-    return true;
-}
-
-void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
+// 谐波注入SPWM实现SVPWM (Min-Max方法生成马鞍波)
+// 输入[-1~+1]，输出[0~ARR_PERIOD]
+void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
 {
     if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
         return;
@@ -237,66 +121,47 @@ void SVPWM(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *Tcm2, ui
         return;
     }
 
+    // 输入范围说明：
+    // U_alpha_pu, U_beta_pu 是标幺值，范围 [-1, 1]
+    // 其中 ±1.0 对应电压基值 V_base = V_DC/√3
+    // SVPWM 线性调制区：矢量幅值 ≤ 1/√3 ≈ 0.577
+    // 过调制区：0.577 < 幅值 ≤ 1.0
+    // 逆Clarke变换：将αβ坐标系的电压转换为三相电压（标幺值）
+    // 标准逆Clarke变换公式（等幅值变换）：
+    // U_a = U_alpha
+    // U_b = -0.5 * U_alpha + (√3/2) * U_beta
+    // U_c = -0.5 * U_alpha - (√3/2) * U_beta
+    // 输出范围：[-1, 1] 标幺值
     const float U_a = U_alpha_pu;
     const float U_b = (-0.5f * U_alpha_pu) + (SQRT3_OVER_TWO_F * U_beta_pu);
     const float U_c = (-0.5f * U_alpha_pu) - (SQRT3_OVER_TWO_F * U_beta_pu);
 
+    // 零序分量 = -(max + min) / 2
+    // 这会产生三次谐波注入，形成马鞍波形状，提升电压利用率约15%
     const float U_zero = foc_math_zero_sequence(U_a, U_b, U_c);
 
+    // 将零序分量注入到三相电压中（标幺值）
+    // 注入后的范围：仍为 [-1, 1] 左右，但峰值被削平
     const float Ua_injected = U_a + U_zero;
     const float Ub_injected = U_b + U_zero;
     const float Uc_injected = U_c + U_zero;
 
-    const float Tcm1_pu = foc_math_saturate(Ua_injected + 0.5f, 0.0f, 1.0f);
-    const float Tcm2_pu = foc_math_saturate(Ub_injected + 0.5f, 0.0f, 1.0f);
-    const float Tcm3_pu = foc_math_saturate(Uc_injected + 0.5f, 0.0f, 1.0f);
+    // 将标幺电压 [-1, 1] 转换为占空比 [0, 1]
+    // 映射关系：
+    //   标幺值 -1.0 → 占空比 0.0 (0%)
+    //   标幺值  0.0 → 占空比 0.5 (50%, 中点)
+    //   标幺值 +1.0 → 占空比 1.0 (100%)
+    // 公式：duty = (voltage_pu + 1.0) / 2.0 = voltage_pu * 0.5 + 0.5
+    const float Tcm1_pu = foc_math_saturate(Ua_injected * 0.5f + 0.5f, 0.0f, 1.0f);
+    const float Tcm2_pu = foc_math_saturate(Ub_injected * 0.5f + 0.5f, 0.0f, 1.0f);
+    const float Tcm3_pu = foc_math_saturate(Uc_injected * 0.5f + 0.5f, 0.0f, 1.0f);
 
+    // 转换为定时器计数值
     *Tcm1 = foc_math_pu_to_ticks(Tcm1_pu);
     *Tcm2 = foc_math_pu_to_ticks(Tcm2_pu);
     *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
 }
 
-bool SVPWM_Q31(q31_t U_alpha_q31, q31_t U_beta_q31, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
-{
-    if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
-        return false;
-    }
-
-    if (!foc_math_q31_is_unit(U_alpha_q31) || !foc_math_q31_is_unit(U_beta_q31)) {
-        *Tcm1 = *Tcm2 = *Tcm3 = ARR_PERIOD / 2;
-        return false;
-    }
-
-    const q31_t U_a = U_alpha_q31;
-    const q31_t half_alpha = foc_math_q31_mul(Q31_NEG_HALF, U_alpha_q31);
-    const q31_t beta_term = foc_math_q31_mul(SQRT3_OVER_TWO_Q31, U_beta_q31);
-
-    const q31_t U_b = foc_math_q31_add(half_alpha, beta_term);
-    const q31_t U_c = foc_math_q31_sub(half_alpha, beta_term);
-
-    const q31_t max_v = foc_math_q31_max3(U_a, U_b, U_c);
-    const q31_t min_v = foc_math_q31_min3(U_a, U_b, U_c);
-    const q31_t sum_extremes = foc_math_q31_add(max_v, min_v);
-    const q31_t U_zero = foc_math_q31_mul(sum_extremes, Q31_NEG_HALF);
-
-    const q31_t Ua_injected = foc_math_q31_add(U_a, U_zero);
-    const q31_t Ub_injected = foc_math_q31_add(U_b, U_zero);
-    const q31_t Uc_injected = foc_math_q31_add(U_c, U_zero);
-
-    q31_t Tcm1_q31 = foc_math_q31_add(Ua_injected, Q31_HALF);
-    q31_t Tcm2_q31 = foc_math_q31_add(Ub_injected, Q31_HALF);
-    q31_t Tcm3_q31 = foc_math_q31_add(Uc_injected, Q31_HALF);
-
-    Tcm1_q31 = foc_math_q31_clamp(Tcm1_q31, 0, Q31_MAX);
-    Tcm2_q31 = foc_math_q31_clamp(Tcm2_q31, 0, Q31_MAX);
-    Tcm3_q31 = foc_math_q31_clamp(Tcm3_q31, 0, Q31_MAX);
-
-    *Tcm1 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm1_q31));
-    *Tcm2 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm2_q31));
-    *Tcm3 = foc_math_pu_to_ticks(foc_math_q31_to_float(Tcm3_q31));
-
-    return true;
-}
 
 bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu)
 {
@@ -312,27 +177,6 @@ bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta
 
     *I_alpha_pu = ia_pu;
     *I_beta_pu  = (ia_pu + 2.0f * ib_pu) * INV_SQRT3_F;
-    return true;
-}
-
-bool Clarke_TransformQ31(q31_t ia_q31, q31_t ib_q31, q31_t *I_alpha_q31, q31_t *I_beta_q31)
-{
-    if (I_alpha_q31 == NULL || I_beta_q31 == NULL) {
-        return false;
-    }
-
-    if (!foc_math_q31_is_unit(ia_q31) || !foc_math_q31_is_unit(ib_q31)) {
-        *I_alpha_q31 = 0;
-        *I_beta_q31 = 0;
-        return false;
-    }
-
-    const q31_t two_ib = foc_math_q31_add(ib_q31, ib_q31);
-    const q31_t sum = foc_math_q31_add(ia_q31, two_ib);
-
-    *I_alpha_q31 = ia_q31;
-    *I_beta_q31  = foc_math_q31_mul(sum, INV_SQRT3_Q31);
-
     return true;
 }
 
@@ -357,7 +201,9 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
     
     if (HAL_CORDIC_Configure(&hcordic, &sConfig) != HAL_OK) {
         // 配置失败，回退到软件实现
-        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+        // arm_sin_cos_f32需要角度输入（度），需要将弧度转换为度
+        float theta_degrees = wrapped * (180.0f / PI);
+        arm_sin_cos_f32(theta_degrees, sin_theta_e, cos_theta_e);
         return;
     }
     
@@ -372,54 +218,12 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
         *sin_theta_e = (float)results[1] / Q31_SCALE_F;
     } else {
         // 计算失败，回退到软件实现
-        arm_sin_cos_f32(wrapped, sin_theta_e, cos_theta_e);
+        // arm_sin_cos_f32需要角度输入（度），需要将弧度转换为度
+        float theta_degrees = wrapped * (180.0f / PI);
+        arm_sin_cos_f32(theta_degrees, sin_theta_e, cos_theta_e);
     }
 }
 
-void Sine_CosineQ31(float theta_e, q31_t *sin_theta_q31, q31_t *cos_theta_q31)
-{
-    if (sin_theta_q31 == NULL || cos_theta_q31 == NULL) {
-        return;
-    }
-
-    const float wrapped = foc_math_wrap_angle(theta_e);
-    
-    /* 配置CORDIC用于余弦计算 */
-    CORDIC_ConfigTypeDef sConfig = {0};
-    sConfig.Function = CORDIC_FUNCTION_COSINE;      // 余弦函数
-    sConfig.Scale = CORDIC_SCALE_0;                 // 无缩放
-    sConfig.InSize = CORDIC_INSIZE_32BITS;          // 32位输入
-    sConfig.OutSize = CORDIC_OUTSIZE_32BITS;        // 32位输出
-    sConfig.NbWrite = CORDIC_NBWRITE_1;             // 1个输入
-    sConfig.NbRead = CORDIC_NBREAD_2;               // 2个输出(cos, sin)
-    sConfig.Precision = CORDIC_PRECISION_6CYCLES;   // 适中精度，适合电机控制
-    
-    if (HAL_CORDIC_Configure(&hcordic, &sConfig) != HAL_OK) {
-        // 配置失败，回退到软件实现
-        float sin_val, cos_val;
-        arm_sin_cos_f32(wrapped, &sin_val, &cos_val);
-        *sin_theta_q31 = foc_math_q31_from_float(sin_val);
-        *cos_theta_q31 = foc_math_q31_from_float(cos_val);
-        return;
-    }
-    
-    /* 将角度转换为Q1.31格式：[-π, π] → [-2^31, 2^31-1] */
-    int32_t angle_q31 = (int32_t)(wrapped * Q31_SCALE_F / PI);
-    int32_t results[2];
-    
-    /* 调用CORDIC计算 */
-    if (HAL_CORDIC_Calculate(&hcordic, &angle_q31, results, 1, 20) == HAL_OK) {
-        /* 直接使用Q1.31格式结果 */
-        *cos_theta_q31 = (q31_t)results[0];
-        *sin_theta_q31 = (q31_t)results[1];
-    } else {
-        // 计算失败，回退到软件实现
-        float sin_val, cos_val;
-        arm_sin_cos_f32(wrapped, &sin_val, &cos_val);
-        *sin_theta_q31 = foc_math_q31_from_float(sin_val);
-        *cos_theta_q31 = foc_math_q31_from_float(cos_val);
-    }
-}
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q)
 {
@@ -449,32 +253,6 @@ void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float co
     /* 这里我们保持原有的矩阵乘法实现，但正弦余弦值可以来自CORDIC */
     *I_d = I_alpha_pu * cos_theta + I_beta_pu * sin_theta;
     *I_q = -I_alpha_pu * sin_theta + I_beta_pu * cos_theta;
-}
-
-bool Park_TransformQ31(q31_t I_alpha_q31, q31_t I_beta_q31, q31_t sin_theta_q31, q31_t cos_theta_q31,
-                       q31_t *I_d_q31, q31_t *I_q_q31)
-{
-    if (I_d_q31 == NULL || I_q_q31 == NULL) {
-        return false;
-    }
-
-    if (!foc_math_q31_is_unit(sin_theta_q31) || !foc_math_q31_is_unit(cos_theta_q31)) {
-        *I_d_q31 = 0;
-        *I_q_q31 = 0;
-        return false;
-    }
-
-    /* 使用CORDIC优化的Park变换Q31版本 */
-    /* 正弦余弦值来自CORDIC硬件加速，这里直接进行Q31矩阵乘法 */
-    const q31_t term_alpha_cos = foc_math_q31_mul(I_alpha_q31, cos_theta_q31);
-    const q31_t term_beta_sin  = foc_math_q31_mul(I_beta_q31, sin_theta_q31);
-    const q31_t term_alpha_sin = foc_math_q31_mul(I_alpha_q31, sin_theta_q31);
-    const q31_t term_beta_cos  = foc_math_q31_mul(I_beta_q31, cos_theta_q31);
-
-    *I_d_q31 = foc_math_q31_add(term_alpha_cos, term_beta_sin);
-    *I_q_q31 = foc_math_q31_sub(term_beta_cos, term_alpha_sin);
-
-    return true;
 }
 
 
@@ -534,48 +312,6 @@ float LPF_Filter(LPF_Float_t *filter, float input, float cutoff_freq, float samp
     return output;
 }
 
-q31_t LPF_FilterQ31(LPF_Q31_t *filter, q31_t input, float cutoff_freq, float sample_time, bool unit)
-{
-    /* 参数验证 */
-    if (!isfinite(cutoff_freq) || !isfinite(sample_time) || cutoff_freq <= 0.0f || sample_time <= 0.0f) {
-        return input;
-    }
-    
-    /* 频率单位转换 */
-    float omega_c;
-    if (unit) {
-        /* Hz转换为rad/s */
-        omega_c = TWO_PI_F * cutoff_freq;
-    } else {
-        /* 直接使用rad/s */
-        omega_c = cutoff_freq;
-    }
-    
-    /* 计算滤波器系数 α = (2 * ωc * Ts) / (2 + ωc * Ts) */
-    float denominator = 2.0f + omega_c * sample_time;
-    if (denominator <= 0.0f) {
-        return input;
-    }
-    
-    float alpha = (2.0f * omega_c * sample_time) / denominator;
-    
-    /* 确保alpha在有效范围内 */
-    alpha = foc_math_saturate(alpha, 0.0f, 1.0f);
-    
-    /* 转换为Q31格式 */
-    q31_t alpha_q31 = foc_math_q31_from_float(alpha);
-    q31_t one_minus_alpha_q31 = Q31_MAX - alpha_q31;
-    
-    /* Q31低通滤波器递推公式：y[n] = α * x[n] + (1-α) * y[n-1] */
-    q31_t term_input = foc_math_q31_mul(alpha_q31, input);
-    q31_t term_state = foc_math_q31_mul(one_minus_alpha_q31, filter->state);
-    q31_t output = foc_math_q31_add(term_input, term_state);
-    
-    /* 更新状态 */
-    filter->state = output;
-    
-    return output;
-}
 
 
 /**
@@ -619,155 +355,62 @@ int16_t LPF_Update(LPF_1stOrder_t* filter, int16_t input) {
     return filter->state.sw.lo;
 }
 
-
+// 输入：Valpha, Vbeta 标幺值 [-1, 1]，与SVPWM_minmax使用相同的电压定义
+// 输出：Tcm1, Tcm2, Tcm3 定时器比较值 [0, ARR_PERIOD]，sector 扇区编号 [1-6]
 void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector)
 {
-    // 输出变量初始化
-    if (Tcm1 != NULL) *Tcm1 = 0;
-    if (Tcm2 != NULL) *Tcm2 = 0;
-    if (Tcm3 != NULL) *Tcm3 = 0;
-    if (sector != NULL) *sector = 0;
-    
- 
-    if (!isfinite(Valpha) || !isfinite(Vbeta)) {
-        return;
-    }
-    
-    // 使用宏定义计算PWM周期
-    float Tpwm = 1.0f / PWM_FREQUENCY;  // PWM周期 = 1 / PWM频率
-    
-    float angle = atan2f(Vbeta, Valpha);
-    uint8_t temp_sector = 0;
-    
-    // 六分仪判断：将360度分为6个60度扇区
-    if (angle >= -PI/6 && angle < PI/6) {
-        temp_sector = 1;
-    } else if (angle >= PI/6 && angle < PI/2) {
-        temp_sector = 2;
-    } else if (angle >= PI/2 && angle < 5*PI/6) {
-        temp_sector = 3;
-    } else if (angle >= 5*PI/6 || angle < -5*PI/6) {
-        temp_sector = 4;
-    } else if (angle >= -5*PI/6 && angle < -PI/2) {
-        temp_sector = 5;
-    } else if (angle >= -PI/2 && angle < -PI/6) {
-        temp_sector = 6;
-    }
-    
-    if (sector != NULL) {
-        *sector = temp_sector;
-    }
-    
-    // 电压矢量幅值限制（标幺值范围[-1,1]）
-    float V_mag = sqrtf(Valpha*Valpha + Vbeta*Vbeta);
-    if (V_mag > 1.0f) {
-        // 过调制处理：按比例缩小
-        float scale = 1.0f / V_mag;
-        Valpha *= scale;
-        Vbeta *= scale;
-        V_mag = 1.0f;
-    }
-    
-    float T1 = 0.0f, T2 = 0.0f;
-    
-    // 根据扇区计算T1和T2（标幺化处理）
-    switch(temp_sector) {
-        case 1:
-            T1 = -Valpha + Vbeta * INV_SQRT3_F;
-            T2 = 2.0f * Vbeta * INV_SQRT3_F;
-            break;
-        case 2:
-            T1 = Valpha + Vbeta * INV_SQRT3_F;
-            T2 = -Valpha + Vbeta * INV_SQRT3_F;
-            break;
-        case 3:
-            T1 = 2.0f * Vbeta * INV_SQRT3_F;
-            T2 = -Valpha - Vbeta * INV_SQRT3_F;
-            break;
-        case 4:
-            T1 = -2.0f * Vbeta * INV_SQRT3_F;
-            T2 = Valpha - Vbeta * INV_SQRT3_F;
-            break;
-        case 5:
-            T1 = -Valpha - Vbeta * INV_SQRT3_F;
-            T2 = -2.0f * Vbeta * INV_SQRT3_F;
-            break;
-        case 6:
-            T1 = Valpha - Vbeta * INV_SQRT3_F;
-            T2 = Valpha + Vbeta * INV_SQRT3_F;
-            break;
-        default:
-            T1 = 0.0f;
-            T2 = 0.0f;
-            break;
-    }
-    
-    // 过调制处理
-    if (T1 + T2 > Tpwm) {
-        float scale = Tpwm / (T1 + T2);
-        T1 = T1 * scale;
-        T2 = T2 * scale;
-    }
-    
-    // 7段式PWM生成（与原有实现保持一致）
-    float ta = (Tpwm - (T1 + T2)) / 4.0f;
-    float tb = ta + T1 / 2.0f;
-    float tc = tb + T2 / 2.0f;
-    
-    // 输出调制信号
-    float temp_Tcm1 = 0.0f, temp_Tcm2 = 0.0f, temp_Tcm3 = 0.0f;
-    
-    switch(temp_sector) {
-        case 1:
-            temp_Tcm1 = tb;
-            temp_Tcm2 = ta;
-            temp_Tcm3 = tc;
-            break;
-        case 2:
-            temp_Tcm1 = ta;
-            temp_Tcm2 = tc;
-            temp_Tcm3 = tb;
-            break;
-        case 3:
-            temp_Tcm1 = ta;
-            temp_Tcm2 = tb;
-            temp_Tcm3 = tc;
-            break;
-        case 4:
-            temp_Tcm1 = tc;
-            temp_Tcm2 = tb;
-            temp_Tcm3 = ta;
-            break;
-        case 5:
-            temp_Tcm1 = tc;
-            temp_Tcm2 = ta;
-            temp_Tcm3 = tb;
-            break;
-        case 6:
-            temp_Tcm1 = tb;
-            temp_Tcm2 = tc;
-            temp_Tcm3 = ta;
-            break;
-        default:
-            temp_Tcm1 = Tpwm / 2.0f;
-            temp_Tcm2 = Tpwm / 2.0f;
-            temp_Tcm3 = Tpwm / 2.0f;
-            break;
-    }
-    
-    // 归一化处理，与SVPWM函数保持一致
-    const float Tcm1_pu = foc_math_saturate(2.0f * temp_Tcm1 / Tpwm, 0.0f, 1.0f);
-    const float Tcm2_pu = foc_math_saturate(2.0f * temp_Tcm2 / Tpwm, 0.0f, 1.0f);
-    const float Tcm3_pu = foc_math_saturate(2.0f * temp_Tcm3 / Tpwm, 0.0f, 1.0f);
+    // 参数定义
+    const float sqrt3 = 1.73205080757f; // √3
 
-    // 转换为定时器计数值
-    if (Tcm1 != NULL) {
-        *Tcm1 = foc_math_pu_to_ticks(Tcm1_pu);
-    }
-    if (Tcm2 != NULL) {
-        *Tcm2 = foc_math_pu_to_ticks(Tcm2_pu);
-    }
-    if (Tcm3 != NULL) {
-        *Tcm3 = foc_math_pu_to_ticks(Tcm3_pu);
-    }
+    // 扇区判断变量
+    float Vref1, Vref2, Vref3;
+
+    // 初始化扇区输出
+    *sector = 0;
+    
+    // 扇区计算
+    Vref1 = Vbeta;
+    Vref2 = (sqrt3 * Valpha - Vbeta) / 2.0f;
+    Vref3 = (-sqrt3 * Valpha - Vbeta) / 2.0f;
+    
+    if (Vref1 > 0.0f)
+        *sector = 1;
+    if (Vref2 > 0.0f)
+        *sector += 2;
+    if (Vref3 > 0.0f)
+        *sector += 4;
+    
+    // 扇区内合成矢量作用时间计算
+    // 使用与 SVPWM_minmax 相同的标幺值定义
+    // 通过逆Clarke变换计算三相电压，然后提取 T1, T2
+
+    // 幅值缩放：将输入电压缩放到满幅值
+    // 缩放因子 = 2/√3 ≈ 1.1547，使得输入 1.0 对应满幅值输出
+    const float scale_factor = TWO_BY_SQRT3_F;  // 2/√3
+    const float Valpha_scaled = Valpha * scale_factor;
+    const float Vbeta_scaled = Vbeta * scale_factor;
+
+    // 逆Clarke变换：αβ → abc
+    const float Ua_pu = Valpha_scaled;
+    const float Ub_pu = -0.5f * Valpha_scaled + (sqrt3 / 2.0f) * Vbeta_scaled;
+    const float Uc_pu = -0.5f * Valpha_scaled - (sqrt3 / 2.0f) * Vbeta_scaled;
+
+    // 计算零序分量
+    const float U_zero_pu = -0.5f * (fmaxf(fmaxf(Ua_pu, Ub_pu), Uc_pu) +
+                                      fminf(fminf(Ua_pu, Ub_pu), Uc_pu));
+
+    // 注入零序分量
+    const float Ua_inj = Ua_pu + U_zero_pu;
+    const float Ub_inj = Ub_pu + U_zero_pu;
+    const float Uc_inj = Uc_pu + U_zero_pu;
+
+    // 转换为占空比 [0, 1]
+    const float duty_a = Ua_inj * 0.5f + 0.5f;
+    const float duty_b = Ub_inj * 0.5f + 0.5f;
+    const float duty_c = Uc_inj * 0.5f + 0.5f;
+
+    // 转换为时间计数值
+    *Tcm1 = foc_math_pu_to_ticks(duty_a);
+    *Tcm2 = foc_math_pu_to_ticks(duty_b);
+    *Tcm3 = foc_math_pu_to_ticks(duty_c);
 }

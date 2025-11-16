@@ -44,6 +44,12 @@ defined in linker script */
 .word	_sbss
 /* end address for the .bss section. defined in linker script */
 .word	_ebss
+/* start address for the .ccmtext section. defined in linker script */
+.word	_sccmtext
+/* end address for the .ccmtext section. defined in linker script */
+.word	_eccmtext
+/* source address for the .ccmtext section. defined in linker script */
+.word	_siccmtext
 
 .equ  BootRAM,        0xF1E0F85F
 /**
@@ -82,6 +88,42 @@ LoopCopyDataInit:
   cmp r4, r1
   bcc CopyDataInit
   
+/* Copy CCM code from Flash to CCM RAM */
+  ldr r0, =_sccmtext
+  ldr r1, =_eccmtext
+  ldr r2, =_siccmtext
+  movs r3, #0
+  b LoopCopyCcmInit
+
+CopyCcmInit:
+  ldr r4, [r2, r3]
+  str r4, [r0, r3]
+  adds r3, r3, #4
+
+LoopCopyCcmInit:
+  adds r4, r0, r3
+  cmp r4, r1
+  bcc CopyCcmInit
+/* End of CCM code copy */
+
+/* Copy CCM data from Flash to CCM RAM */
+  ldr r0, =_sccmram
+  ldr r1, =_eccmram
+  ldr r2, =_siccmram
+  movs r3, #0
+  b LoopCopyCcmDataInit
+
+CopyCcmDataInit:
+  ldr r4, [r2, r3]
+  str r4, [r0, r3]
+  adds r3, r3, #4
+
+LoopCopyCcmDataInit:
+  adds r4, r0, r3
+  cmp r4, r1
+  bcc CopyCcmDataInit
+/* End of CCM data copy */
+
 /* Zero fill the bss segment. */
   ldr r2, =_sbss
   ldr r4, =_ebss
@@ -119,6 +161,7 @@ Default_Handler:
 Infinite_Loop:
 	b	Infinite_Loop
 	.size	Default_Handler, .-Default_Handler
+
 /******************************************************************************
 *
 * The minimal vector table for a Cortex-M4.  Note that the proper constructs
@@ -128,7 +171,6 @@ Infinite_Loop:
 ******************************************************************************/
  	.section	.isr_vector,"a",%progbits
 	.type	g_pfnVectors, %object
-
 
 g_pfnVectors:
 	.word	_estack
@@ -589,4 +631,4 @@ g_pfnVectors:
 
 	.weak	FMAC_IRQHandler
 	.thumb_set FMAC_IRQHandler,Default_Handler
-
+	

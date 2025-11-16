@@ -34,7 +34,8 @@
         "testharness.h": "c",
         "motor_control_threadx.h": "c",
         "random": "c",
-        "positioning.h": "c"
+        "positioning.h": "c",
+        "foc_loop.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true,
     "cmake.configureOnOpen": false,
@@ -48,10 +49,31 @@
     "cmake.preferredGenerators": [
         "Ninja"
     ],
-    "C_Cpp.default.compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.40.33807/bin/Hostx64/x64/cl.exe",
-    "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
-    "C_Cpp.default.cStandard": "c11",
-    "C_Cpp.default.cppStandard": "c++17",
+    
+    // 使用ARM交叉编译器
+    "C_Cpp.default.compilerPath": "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
+    "C_Cpp.default.intelliSenseMode": "gcc-arm",
+    "C_Cpp.default.cStandard": "gnu11",
+    "C_Cpp.default.cppStandard": "gnu++17",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/**",
+        "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/arm-none-eabi/include",
+        "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/12.3.1/include"
+    ],
+    "C_Cpp.default.defines": [
+        "DEBUG",
+        "STM32G474xx",
+        "USE_HAL_DRIVER"
+    ],
+    
+    // Clangd配置 
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build/Debug",
+        "--background-index",
+        "--query-driver=E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
+
+    ],
+    "clangd.path": "D:/Program Files/LLVM/bin/clangd.exe",
     
     // CppUTest Test Adapter Configuration
     // CppUTest Test Adapter Configuration (Correct Settings)

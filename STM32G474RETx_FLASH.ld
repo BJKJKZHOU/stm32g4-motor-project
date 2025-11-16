@@ -63,6 +63,7 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 512K
+CCMRAM (xrw)    : ORIGIN = 0x10000000, LENGTH = 32K
 }
 
 /* Define output sections */
@@ -145,7 +146,33 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM AT> FLASH
 
-  
+  /* CCM RAM code section - 代码在CCM中执行，但从Flash加载 */
+  .ccmtext :
+  {
+    . = ALIGN(4);
+    _sccmtext = .;     /* CCM代码段开始 */
+    *(.ccmtext)        /* CCM代码段 */
+    *(.ccmtext*)       /* CCM代码段 */
+    . = ALIGN(4);
+    _eccmtext = .;     /* CCM代码段结束 */
+  } >CCMRAM AT> FLASH
+
+  _siccmtext = LOADADDR(.ccmtext);  /* CCM代码在Flash中的加载地址 */
+
+  /* CCMRAM data sections */
+  .ccmram :
+  {
+    . = ALIGN(4);
+    _sccmram = .;       /* create a global symbol at ccmram start */
+    *(.ccmram)
+    *(.ccmram*)
+    
+    . = ALIGN(4);
+    _eccmram = .;       /* create a global symbol at ccmram end */
+  } >CCMRAM AT> FLASH
+
+  _siccmram = LOADADDR(.ccmram);
+
   /* Uninitialized data section */
   . = ALIGN(4);
   .bss :
@@ -173,8 +200,6 @@ SECTIONS
     . = ALIGN(8);
   } >RAM
 
-  
-
   /* Remove information from the standard libraries */
   /DISCARD/ :
   {
@@ -182,7 +207,4 @@ SECTIONS
     libm.a ( * )
     libgcc.a ( * )
   }
-
 }
-
-

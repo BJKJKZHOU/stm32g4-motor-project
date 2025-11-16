@@ -61,6 +61,12 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     MotorControl/Src/PID_controller.c
     MotorControl/Src/normalization.c
     MotorControl/Src/Positioning.c
+    MotorControl/Src/FOC_Loop.c
+    MotorControl/Src/Current.c
+
+    Drivers/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
+    Drivers/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_f32.c
+    
 )
 
 # Add include paths

@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 #include "tx_api.h"
+#include <stdint.h>
+#include "tim.h"
 
 /* 电机控制线程配置 */
 #define MOTOR_CONTROL_THREAD_STACK_SIZE                  512
@@ -37,6 +39,11 @@ extern "C" {
 /* 导出函数原型 */
 UINT MOTOR_ThreadX_Init(VOID *memory_ptr);
 void motor_control_thread_entry(ULONG thread_input);
+
+/* 开环测试数据 - 供中断和线程间共享 */
+extern volatile uint32_t g_Tcm1;
+extern volatile uint32_t g_Tcm2;
+extern volatile uint32_t g_Tcm3;
 
 #ifdef __cplusplus
 }

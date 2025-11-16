@@ -31,11 +31,6 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
-#include "motor_params.h"
-#include "Vofa_STM32G474.h"
-#include "normalization.h"
-
-#include <stdint.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
