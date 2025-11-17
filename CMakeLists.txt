@@ -97,3 +97,21 @@ add_custom_target(flash
     COMMAND STM32_Programmer_CLI -c port=SWD -d $<TARGET_FILE:${CMAKE_PROJECT_NAME}> -hardRst
     DEPENDS ${CMAKE_PROJECT_NAME}
 )
+
+# Create J-Link flash script using add_custom_command to properly handle generator expressions
+add_custom_command(
+    TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "halt" > ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMAND ${CMAKE_COMMAND} -E echo "loadfile $<TARGET_FILE:${CMAKE_PROJECT_NAME}>.bin 0x08000000" >> ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMAND ${CMAKE_COMMAND} -E echo "r" >> ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMAND ${CMAKE_COMMAND} -E echo "g" >> ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMAND ${CMAKE_COMMAND} -E echo "exit" >> ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMENT "Creating J-Link flash script"
+    VERBATIM
+)
+
+# J-Link flash target for Windows PowerShell
+add_custom_target(flash_jlink
+    COMMAND powershell -Command "& 'D:/Program Files (x86)/SEGGER/JLink/JLink.exe' -device STM32G474RE -if SWD -speed 4000 -CommanderScript ${CMAKE_BINARY_DIR}/flash.jlink"
+    DEPENDS ${CMAKE_PROJECT_NAME}
+)

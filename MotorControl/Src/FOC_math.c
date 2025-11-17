@@ -373,12 +373,27 @@ void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2
     Vref2 = (sqrt3 * Valpha - Vbeta) / 2.0f;
     Vref3 = (-sqrt3 * Valpha - Vbeta) / 2.0f;
     
-    if (Vref1 > 0.0f)
-        *sector = 1;
-    if (Vref2 > 0.0f)
-        *sector += 2;
-    if (Vref3 > 0.0f)
-        *sector += 4;
+    uint8_t n = 0;
+    if (Vref1 > 0) n |= 1; // A
+    if (Vref2 > 0) n |= 2; // B
+    if (Vref3 > 0) n |= 4; // C
+
+    // 根据N值查表确定扇区
+    // N=3 -> 扇区1 (0-60)
+    // N=1 -> 扇区2 (60-120)
+    // N=5 -> 扇区3 (120-180)
+    // N=4 -> 扇区4 (180-240)
+    // N=6 -> 扇区5 (240-300)
+    // N=2 -> 扇区6 (300-360)
+    switch (n) {
+        case 3: *sector = 1; break;
+        case 1: *sector = 2; break;
+        case 5: *sector = 3; break;
+        case 4: *sector = 4; break;
+        case 6: *sector = 5; break;
+        case 2: *sector = 6; break;
+        default: *sector = 0; break; // 错误或边界情况
+    }
     
     // 扇区内合成矢量作用时间计算
     // 使用与 SVPWM_minmax 相同的标幺值定义
