@@ -142,7 +142,7 @@ void Vofa_UpdateTestData(void)
   test_data[8] = g_CurrentSample.current_abc[0];  // Ia相电流物理值 (A)
   test_data[9] = g_CurrentSample.current_abc[1];  // Ib相电流物理值 (A)
   test_data[10] = g_CurrentSample.current_abc[2];  // Ic相电流物理值 (A)
-  test_data[11] = 1000;
+  test_data[11] = 1002;
 }
 
 

@@ -102,7 +102,7 @@ add_custom_target(flash
 add_custom_command(
     TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "halt" > ${CMAKE_BINARY_DIR}/flash.jlink
-    COMMAND ${CMAKE_COMMAND} -E echo "loadfile $<TARGET_FILE:${CMAKE_PROJECT_NAME}>.bin 0x08000000" >> ${CMAKE_BINARY_DIR}/flash.jlink
+    COMMAND ${CMAKE_COMMAND} -E echo "loadfile $<TARGET_FILE:${CMAKE_PROJECT_NAME}>" >> ${CMAKE_BINARY_DIR}/flash.jlink
     COMMAND ${CMAKE_COMMAND} -E echo "r" >> ${CMAKE_BINARY_DIR}/flash.jlink
     COMMAND ${CMAKE_COMMAND} -E echo "g" >> ${CMAKE_BINARY_DIR}/flash.jlink
     COMMAND ${CMAKE_COMMAND} -E echo "exit" >> ${CMAKE_BINARY_DIR}/flash.jlink

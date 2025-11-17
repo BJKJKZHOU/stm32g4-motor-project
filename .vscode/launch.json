@@ -2,6 +2,21 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Cortex Debug (J-Link)",
+            "cwd": "${workspaceRoot}",
+            "executable": "./build/Debug/stm32g4-motor-project-ex.elf",
+            "request": "launch",
+            "type": "cortex-debug",
+            "servertype": "jlink",
+            "device": "STM32G474RE",
+            "svdFile": "./STM32G474xx.svd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "parsed",
+            "rtos": "Azure",
+            "interface": "swd",
+            "serialNumber": ""
+        },
+        {
             "name": "Cortex Debug (OpenOCD)",
             "cwd": "${workspaceRoot}",
             "executable": "./build/Debug/stm32g4-motor-project-ex.elf",
@@ -12,7 +27,6 @@
             "svdFile": "./STM32G474xx.svd",
             "runToEntryPoint": "main",
             "showDevDebugOutput": "parsed",
-            "rtos": "ThreadX",
             "configFiles": [
                 "st_nucleo_g4.cfg"
             ]
