@@ -64,12 +64,16 @@ if(EXISTS "${CppUTest_INCLUDE_DIRS}/CppUTest/TestHarness.h" AND EXISTS "${CppUTe
     # 添加测试源文件
     target_sources(FOC_math_Tests_CPPUTest PRIVATE
         test_MotorControl/test_FOC_math_cpputest.cpp
+        test_MotorControl/test_Positioning_cpputest.cpp
         test_stubs/stm32_hal_stubs.c
+        test_stubs/motor_params_stub.c
+        test_stubs/normalization_stub.c
     )
     
     # 添加被测试的源文件
     target_sources(FOC_math_Tests_CPPUTest PRIVATE
         ../MotorControl/Src/FOC_math.c
+        ../MotorControl/Src/Positioning.c
     )
     
     # 添加包含目录

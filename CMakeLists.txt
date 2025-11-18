@@ -112,6 +112,6 @@ add_custom_command(
 
 # J-Link flash target for Windows PowerShell
 add_custom_target(flash_jlink
-    COMMAND powershell -Command "& 'D:/Program Files (x86)/SEGGER/JLink/JLink.exe' -device STM32G474RE -if SWD -speed 4000 -CommanderScript ${CMAKE_BINARY_DIR}/flash.jlink"
+    COMMAND powershell -Command "& 'JLink' -device STM32G474RE -if SWD -speed 4000 -CommanderScript ${CMAKE_BINARY_DIR}/flash.jlink"
     DEPENDS ${CMAKE_PROJECT_NAME}
 )

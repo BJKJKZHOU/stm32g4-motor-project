@@ -21,7 +21,7 @@ extern "C" {
 
 // ARR_PERIOD宏定义 
 #ifndef ARR_PERIOD
-#define ARR_PERIOD 4249  // 测试用的默认值
+#define ARR_PERIOD 4250  // 测试用的默认值
 #endif
 
 

@@ -331,6 +331,7 @@ TEST(SVPWM, OverModulationProtection)
     uint32_t Tcm1 = 0, Tcm2 = 0, Tcm3 = 0;
     
     SVPWM_minmax(U_alpha, U_beta, &Tcm1, &Tcm2, &Tcm3);
+    printf("\nTcm1: %d, Tcm2: %d, Tcm3: %d\n", Tcm1, Tcm2, Tcm3);
     
     // 应该被饱和限制到ARR_PERIOD
     CHECK(Tcm1 <= ARR_PERIOD);
