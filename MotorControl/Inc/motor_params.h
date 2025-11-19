@@ -13,8 +13,8 @@
 #ifndef MOTOR_PARAMS_H
 #define MOTOR_PARAMS_H
 
-#include "usart.h"
 
+#include "main.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -24,10 +24,6 @@ extern "C" {
 #endif
 
 #define PARAM_COUNT 11
-
-#ifndef PI
-#define PI 3.1415926f
-#endif
 
 #define FLUX_CONSTANT (60.0f / (1.7320508075688772f * 2.0f * PI * 1000.0f)) //Flux=Ke/((SQRT(3)*2.0f*PI*1000.0*Pn)/60.0)
 
@@ -112,3 +108,4 @@ bool MotorParams_IsAnyMotorActive(void);
 #endif
 
 #endif // MOTOR_PARAMS_H
+

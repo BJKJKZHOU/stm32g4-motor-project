@@ -241,40 +241,43 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
     const float dt_pu = dt / bases->time_base;
     
     // 计算归一化的电机参数
-    // 表面贴装电机: Ld = Lq = L
-    float L_n = params->Ld / bases->inductance_base;  // 归一化电感
-    float Rs_n = params->Rs / bases->impedance_base;  // 归一化电阻
-    float psi_m_n = params->Flux / bases->flux_base;  // 归一化磁链
+    // float L_n = params->Ld / bases->inductance_base;  // 归一化电感
+    // float Rs_n = params->Rs / bases->impedance_base;  // 归一化电阻
+    // float psi_m_n = params->Flux / bases->flux_base;  // 归一化磁链
     
-    // 步骤3: 计算可测量变量 y = -Rs * i_αβ + v_αβ
+    float L_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_INDUCTANCE, params->Ld);
+    float Rs_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_IMPEDANCE, params->Rs);
+    float psi_m_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_FLUX, params->Flux);
+    // 修复1: 正确计算总磁链的期望幅值
+    // 对于表面贴装永磁同步电机，总磁链幅值就是永磁体磁链
+    const float expected_flux_norm_sq = psi_m_n * psi_m_n;
+    
+    // 计算可测量变量 y = -Rs * i_αβ + v_αβ
     float y_alpha_pu = -Rs_n * i_alpha_pu + v_alpha_pu;
     float y_beta_pu = -Rs_n * i_beta_pu + v_beta_pu;
     
-    // 步骤4: 计算误差项 η(hat{x}) = hat{x} - L * i_αβ
+    // 计算误差项 η = x̂ - L * i_αβ (这就是估计的总磁链)
     float eta_alpha_pu = obs->x_hat_alpha_pu - L_n * i_alpha_pu;
     float eta_beta_pu = obs->x_hat_beta_pu - L_n * i_beta_pu;
     
-    // 计算误差项的范数平方 ||η(hat{x})||^2
+    // 计算误差项的范数平方 ||η||²
     float eta_norm_sq_pu = eta_alpha_pu * eta_alpha_pu + eta_beta_pu * eta_beta_pu;
     
-    // 暂存上一次的滤波误差值（用于后续收敛判定）
-    float eta_norm_sq_last_saved = obs->eta_norm_sq_last;
+    // 修复2: 保存当前误差用于收敛判定（在状态更新前）
+    float current_eta_norm_sq = eta_norm_sq_pu;
+    
+    // 修复3: 计算误差驱动项 [ψ_m² - ||η||²]
+    float error_term_pu = expected_flux_norm_sq - eta_norm_sq_pu;
 
-    // 更新误差统计（使用更新前的误差，用于观测器算法）
-    if (!obs->error_metrics_valid || !isfinite(obs->eta_norm_sq_filtered)) {
-        obs->eta_norm_sq_filtered = eta_norm_sq_pu;
-        obs->eta_norm_sq_last = eta_norm_sq_pu;
-        obs->error_metrics_valid = true;
-    } else {
-        obs->eta_norm_sq_filtered += NONLINEAR_OBS_FILTER_ALPHA *
-            (eta_norm_sq_pu - obs->eta_norm_sq_filtered);
+    // 论文优化: 强制误差项非正以提高收敛性
+    // 参考: http://cas.ensmp.fr/Publications/Publications/Papers/ObserverPermanentMagnet.pdf
+    // 和 https://arxiv.org/pdf/1905.00833.pdf
+    if (error_term_pu > 0.0f) {
+        error_term_pu = 0.0f;
     }
-    
-    // 计算误差驱动项 [ψ_m^2 - ||η(hat{x})||^2]
-    float error_term_pu = psi_m_n * psi_m_n - eta_norm_sq_pu;
-    
-    // 步骤4: 更新观测器状态
-    // d\hat{x}/dt = y + (γ/2) * η(\hat{x}) * [ψ_m^2 - ||η(\hat{x})||^2]
+
+    // 更新观测器状态
+    // dx̂/dt = y + (γ/2) * η * [ψ_m² - ||η||²]
     float dx_hat_alpha_dt = y_alpha_pu + (obs->gamma / 2.0f) * eta_alpha_pu * error_term_pu;
     float dx_hat_beta_dt = y_beta_pu + (obs->gamma / 2.0f) * eta_beta_pu * error_term_pu;
     
@@ -282,69 +285,86 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
     obs->x_hat_alpha_pu += dx_hat_alpha_dt * dt_pu;
     obs->x_hat_beta_pu += dx_hat_beta_dt * dt_pu;
 
-    // 步骤5: 提取位置估计
-    // [cos\hat{θ}; sin\hat{θ}] = (1/ψ_m) * (\hat{x} - L * i_αβ)
+    // 修复4: 重新计算更新后的磁链估计（用于位置计算）
+    float eta_alpha_updated = obs->x_hat_alpha_pu - L_n * i_alpha_pu;
+    float eta_beta_updated = obs->x_hat_beta_pu - L_n * i_beta_pu;
+    
+    // 修复5: 统一误差滤波逻辑（只在状态更新后滤波一次）
+    float eta_norm_sq_updated = eta_alpha_updated * eta_alpha_updated + 
+                               eta_beta_updated * eta_beta_updated;
+    
+    if (!obs->error_metrics_valid || !isfinite(obs->eta_norm_sq_filtered)) {
+        obs->eta_norm_sq_filtered = eta_norm_sq_updated;
+        obs->error_metrics_valid = true;
+    } else {
+        // 只在这里进行一次滤波
+        obs->eta_norm_sq_filtered += NONLINEAR_OBS_FILTER_ALPHA * 
+                                   (eta_norm_sq_updated - obs->eta_norm_sq_filtered);
+    }
+    
+    // 修复6: 改进位置计算 - 避免观测器卡死
+    // 计算状态估计的幅值（总磁链）
+    float x_hat_norm = sqrtf(obs->x_hat_alpha_pu * obs->x_hat_alpha_pu +
+                             obs->x_hat_beta_pu * obs->x_hat_beta_pu);
 
-    // 除零保护：检查归一化磁链是否有效
-    if (fabsf(psi_m_n) < 1e-10f) {
-        // 磁链过小，保持之前的位置估计
-        return;
+    // 论文优化: 磁链幅值保护 - 防止观测器发散
+    // 参考 VESC 实现: 当磁链幅值过小时，放大状态估计
+    if (x_hat_norm < (psi_m_n * 0.5f)) {
+        obs->x_hat_alpha_pu *= 1.1f;
+        obs->x_hat_beta_pu *= 1.1f;
+        // 重新计算更新后的磁链估计
+        eta_alpha_updated = obs->x_hat_alpha_pu - L_n * i_alpha_pu;
+        eta_beta_updated = obs->x_hat_beta_pu - L_n * i_beta_pu;
     }
 
-    float cos_theta_hat = (obs->x_hat_alpha_pu - L_n * i_alpha_pu) / psi_m_n;
-    float sin_theta_hat = (obs->x_hat_beta_pu - L_n * i_beta_pu) / psi_m_n;
+    // 计算磁链估计的幅值
+    float vec_norm = sqrtf(eta_alpha_updated * eta_alpha_updated +
+                          eta_beta_updated * eta_beta_updated);
 
-    // 对向量整体归一化，维持在单位圆上
-    float vec_norm_sq = cos_theta_hat * cos_theta_hat + sin_theta_hat * sin_theta_hat;
-    if (vec_norm_sq < 1e-12f || !isfinite(vec_norm_sq)) {
-        return;
+    if (vec_norm < 1e-6f || !isfinite(vec_norm)) {
+        // 极端情况：磁链估计过小，使用单位向量避免除零
+        eta_alpha_updated = 1e-6f;
+        eta_beta_updated = 0.0f;
+        vec_norm = 1e-6f;
     }
-    float inv_norm = 1.0f / sqrtf(vec_norm_sq);
-    cos_theta_hat *= inv_norm;
-    sin_theta_hat *= inv_norm;
-
-    // 使用 atan2 计算位置估计 (弧度)
+    
+    // 计算单位向量 [cosθ, sinθ] = η / ||η||
+    float cos_theta_hat = eta_alpha_updated / vec_norm;
+    float sin_theta_hat = eta_beta_updated / vec_norm;
+    
+    // 修复7: 确保单位向量在单位圆上（数值修正）
+    float correction_factor = 1.0f / sqrtf(cos_theta_hat * cos_theta_hat + 
+                                          sin_theta_hat * sin_theta_hat);
+    cos_theta_hat *= correction_factor;
+    sin_theta_hat *= correction_factor;
+    
+    // 使用 atan2 计算位置估计
     obs->theta_hat_rad = atan2f(sin_theta_hat, cos_theta_hat);
-
+    
     // 转换为角度 (0-360度范围)
     obs->theta_hat_deg = obs->theta_hat_rad * 180.0f / PI;
     if (obs->theta_hat_deg < 0.0f) {
         obs->theta_hat_deg += 360.0f;
     }
-
-    // 重新计算更新后的误差（用于收敛判定）
-    // 注意：这里使用更新后的 x_hat 值
-    float eta_alpha_updated = obs->x_hat_alpha_pu - L_n * i_alpha_pu;
-    float eta_beta_updated = obs->x_hat_beta_pu - L_n * i_beta_pu;
-    float eta_norm_sq_updated = eta_alpha_updated * eta_alpha_updated +
-                                eta_beta_updated * eta_beta_updated;
-
-    // 应用滤波器到更新后的误差
-    float eta_norm_sq_filtered_updated = obs->eta_norm_sq_filtered +
-        NONLINEAR_OBS_FILTER_ALPHA * (eta_norm_sq_updated - obs->eta_norm_sq_filtered);
-
-    // 计算误差变化率（使用更新后的滤波误差）
-    float eta_delta = fabsf(eta_norm_sq_filtered_updated - eta_norm_sq_last_saved);
-
-    // 更新存储的滤波误差值
-    obs->eta_norm_sq_last = eta_norm_sq_filtered_updated;
-
-    // 检查收敛性：误差幅值 + 变化率 + 时间窗口
-    float magnitude_threshold = NONLINEAR_OBS_ERROR_RATIO * psi_m_n * psi_m_n;
-    float delta_threshold = NONLINEAR_OBS_ERROR_DELTA_RATIO * psi_m_n * psi_m_n;
-
-    bool magnitude_ok = eta_norm_sq_filtered_updated < magnitude_threshold;
-    bool delta_ok = eta_delta < delta_threshold;
-
-    if (magnitude_ok && delta_ok) {
+    
+    // 修复8: 简化收敛判定逻辑
+    float magnitude_threshold = NONLINEAR_OBS_ERROR_RATIO * expected_flux_norm_sq;
+    
+    if (obs->eta_norm_sq_filtered < magnitude_threshold) {
         if (obs->stable_counter < obs->stable_required) {
             obs->stable_counter++;
         }
     } else {
-        obs->stable_counter = 0;
+        // 只有当误差显著增大时才重置计数器
+        if (obs->eta_norm_sq_filtered > magnitude_threshold * 1.5f) {
+            obs->stable_counter = 0;
+        }
     }
-
+    
     obs->is_converged = (obs->stable_counter >= obs->stable_required);
+    
+    // 修复9: 保存当前误差用于下一次的收敛判定
+    obs->eta_norm_sq_last = current_eta_norm_sq;
 }
 
 /**
