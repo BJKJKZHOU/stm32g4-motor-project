@@ -98,7 +98,6 @@ void Inverse_Park_Transform(float U_d_pu, float U_q_pu, float sin_theta, float c
         return;
     }
 
-    /* 使用CORDIC优化的逆Park变换：直接使用传入的正弦余弦值进行旋转矩阵计算 */
     /* 逆Park变换矩阵：[U_alpha] = [cosθ -sinθ][U_d] */
     /*                 [U_beta ]   [sinθ  cosθ][U_q] */
     

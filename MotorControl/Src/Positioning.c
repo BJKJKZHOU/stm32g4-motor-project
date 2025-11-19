@@ -12,14 +12,73 @@
 #include "Positioning.h"
 #include "motor_params.h"
 #include "normalization.h"
+#include "FOC_math.h"    
+#include "Current.h"    
+#include "tim.h"        
+#include "main.h"       
 
-#include <math.h>      // 用于 fabsf, atan2f, sqrtf 函数
+#include <math.h>      
 #include <stdint.h>
-#include <stdlib.h>    // 用于 rand() 函数
 #include <string.h>
 
 
-const float IPD_PULSE_ANGLES[12] = {0, 180, 30, 210, 60, 240, 90, 270, 120, 300, 150, 330};
+static const float IPD_PULSE_ANGLES[12] = {
+    0, 180, 30, 210, 60, 240, 90, 270, 120, 300, 150, 330
+};
+
+// ============================================================================
+// IPD 微秒级延时函数（基于 DWT 硬件计数器）
+// ============================================================================
+
+/**
+ * @brief 初始化 DWT（Data Watchpoint and Trace）计数器
+ * @note DWT 是 ARM Cortex-M 内核的调试单元，提供高精度时间戳计数器
+ *       计数器频率 = CPU 频率（170MHz），精度约 5.88ns
+ *        
+ */
+static void IPD_DWT_Init(void)
+{
+    // 使能 DWT 和 ITM（Instrumentation Trace Macrocell）
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+
+    // 复位 DWT 计数器
+    DWT->CYCCNT = 0;
+
+    // 使能 DWT 计数器
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
+/**
+ * @brief 微秒级精确延时函数
+ * @param us 延时时间（微秒）
+ * @note 基于 DWT 硬件计数器实现，精度为 1 个 CPU 时钟周期（约 5.88ns @ 170MHz）
+ *       适用于 IPD 脉冲序列中的短延时（50-5000us）
+ *       不会阻塞 RTOS 调度器，但会占用 CPU
+ */
+static void IPD_DelayUs(uint32_t us)
+{
+    // 确保 DWT 计数器已初始化
+    static uint8_t dwt_initialized = 0;
+    if (!dwt_initialized) {
+        IPD_DWT_Init();
+        dwt_initialized = 1;
+    }
+
+    // 计算需要的时钟周期数
+    // CPU 频率 = 170MHz，1us = 170 个时钟周期
+    uint32_t cycles = us * (SystemCoreClock / 1000000);
+
+    // 记录起始时间
+    uint32_t start = DWT->CYCCNT;
+
+    // 等待指定的时钟周期数（考虑计数器溢出）
+    while ((DWT->CYCCNT - start) < cycles) {
+        // 空循环，等待计数器增 
+        // 注意：DWT->CYCCNT 是 32 位无符号数，减法会自动处理溢出
+    }
+}
+
+// ============================================================================
 
 #define NONLINEAR_OBS_ERROR_RATIO        (0.01f)
 #define NONLINEAR_OBS_ERROR_DELTA_RATIO  (0.001f)
@@ -106,43 +165,191 @@ float IPD_CalculateRotorPosition(IPD_Pulse_t pulses[12])
 }
 
 
-// 执行完整的12脉冲定位序列
-bool IPD_ExecutePulseSequence(IPD_Pulse_t pulses[12])
+// ============================================================================
+// IPD 高层封装接口实现
+// ============================================================================
+
+/**
+ * @brief 检测转子初始位置（简化接口）
+ * @param config IPD 配置参数
+ * @param angle_deg 输出：转子位置（度），范围 [0, 360)
+ * @return true=成功, false=失败
+ */
+bool IPD_DetectRotorPosition(const IPD_Config_t *config, float *angle_deg)
 {
-    // 临时电流采样值
-    float current_sample = 0.0f;
-    
+    // 参数检查
+    if (config == NULL || angle_deg == NULL) {
+        return false;
+    }
+
+    // 内部分配脉冲数据数组
+    IPD_Pulse_t pulses[12];
+
+    // 执行脉冲序列
+    if (!IPD_ExecutePulseSequence(pulses, config)) {
+        return false;
+    }
+
+    // 计算转子位置
+    float position = IPD_CalculateRotorPosition(pulses);
+
+    // 检查结果有效性
+    if (position < 0.0f) {
+        return false;  // 计算失败
+    }
+
+    *angle_deg = position;
+    return true;
+}
+
+/**
+ * @brief 检测转子初始位置（带详细数据输出）
+ * @param config IPD 配置参数
+ * @param angle_deg 输出：转子位置（度），范围 [0, 360)
+ * @param pulses 输出：12个脉冲的详细数据（可选，传 NULL 则不输出）
+ * @return true=成功, false=失败
+ */
+
+bool IPD_DetectRotorPositionEx(const IPD_Config_t *config, float *angle_deg, IPD_Pulse_t pulses[12])
+{
+    // 参数检查
+    if (config == NULL || angle_deg == NULL) {
+        return false;
+    }
+
+    // 如果用户不需要详细数据，使用内部数组
+    IPD_Pulse_t internal_pulses[12];
+    IPD_Pulse_t *pulse_data = (pulses != NULL) ? pulses : internal_pulses;
+
+    // 执行脉冲序列
+    if (!IPD_ExecutePulseSequence(pulse_data, config)) {
+        return false;
+    }
+
+    // 计算转子位置
+    float position = IPD_CalculateRotorPosition(pulse_data);
+
+    // 检查结果有效性
+    if (position < 0.0f) {
+        return false;  // 计算失败
+    }
+
+    *angle_deg = position;
+    return true;
+}
+
+// ============================================================================
+// IPD 底层实现
+// ============================================================================
+
+/**
+ * @brief 执行完整的12脉冲IPD定位序列
+ * @param pulses 脉冲数据数组（输出12个脉冲的角度和电流采样值）
+ * @param config IPD配置参数（脉冲电压、持续时间、衰减时间）
+ * @return true=成功, false=失败
+ *
+ * @note 实现原理：
+ *       1. 在预定义的12个角度上依次施加d轴电压脉冲
+ *       2. 每个脉冲后等待电流稳定，然后采样电流幅值
+ *       3. 通过对比不同角度的电流响应，确定转子N极位置
+ *
+ * @note 硬件集成：
+ *       - 使用 SVPWM_minmax() 生成三相PWM波形
+ *       - 使用 TIM1 输出PWM控制逆变器
+ *       - 使用 ADC注入模式采样三相电流
+ *       - 使用 IPD_DelayUs() 实现微秒级延时
+ */
+bool IPD_ExecutePulseSequence(IPD_Pulse_t pulses[12], const IPD_Config_t *config)
+{
+    // 参数有效性检查
+    if (pulses == NULL || config == NULL) {
+        return false;
+    }
+
+    // 检查配置参数合理性
+    if (config->pulse_voltage_pu <= 0.0f || config->pulse_voltage_pu > 0.5f) {
+        return false;  // 电压幅值应在 0-0.5 标幺值范围内（安全考虑）
+    }
+
+    if (config->pulse_duration_us < 50 || config->pulse_duration_us > 1000) {
+        return false;  // 脉冲持续时间应在 50-1000us 范围内
+    }
+
+    if (config->decay_time_us < 100 || config->decay_time_us > 5000) {
+        return false;  // 衰减时间应在 100-5000us 范围内
+    }
+
     // 按照预定义的12个角度顺序发送脉冲
     for (int i = 0; i < 12; i++) {
-        // 设置当前脉冲的角度
+        // 1. 设置当前脉冲的角度
         pulses[i].angle_elec = IPD_PULSE_ANGLES[i];
-        
-        // 发送电压脉冲到电机的代码
-        
-        
-        
-        // 注意：实际项目中应使用硬件定时器或延时函数
-        for (volatile int j = 0; j < 10000; j++);
-        
-        // 采样电机电流的代码
-        
-        
-        // 这里用随机值模拟电流采样（实际应从硬件获取）
-        current_sample = (float)(rand() % 1000) / 1000.0f * 5.0f; // 模拟0-5A的电流
-        
-        // 存储电流采样值
-        pulses[i].current_sample = current_sample;
-        
-        // 脉冲之间的间隔时间，确保电流衰减
-        // 实际项目中应根据电机电气参数和母线电压调整
-        for (volatile int j = 0; j < 20000; j++);
+        float angle_rad = pulses[i].angle_elec * (PI / 180.0f);  // 转换为弧度
+
+        // 2. 计算d轴电压对应的α-β坐标系电压
+        //    IPD在d轴施加电压，q轴为0
+        //    使用逆Park变换：Vα = Vd*cos(θ) - Vq*sin(θ)
+        //                    Vβ = Vd*sin(θ) + Vq*cos(θ)
+        float sin_theta, cos_theta;
+        Sine_Cosine(angle_rad, &sin_theta, &cos_theta);
+
+        float Vd_pu = config->pulse_voltage_pu;  // d轴电压（标幺值）
+        float Vq_pu = 0.0f;                      // q轴电压为0
+
+        float V_alpha_pu, V_beta_pu;
+        Inverse_Park_Transform(Vd_pu, Vq_pu, sin_theta, cos_theta,
+                              &V_alpha_pu, &V_beta_pu);
+
+        // 3. 使用SVPWM生成三相PWM占空比
+        uint32_t Tcm1, Tcm2, Tcm3;
+        SVPWM_minmax(V_alpha_pu, V_beta_pu, &Tcm1, &Tcm2, &Tcm3);
+
+        // 4. 输出PWM波形（施加电压脉冲）
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
+
+        // 5. 等待脉冲持续时间（电流建立）
+        //    使用 DWT 硬件计数器实现微秒级精确延时
+        IPD_DelayUs(config->pulse_duration_us);
+
+        // 6. 采样三相电流并计算电流矢量幅值
+        //    从全局变量 g_CurrentSample 读取最新的电流采样值
+        float ia_pu, ib_pu, ic_pu;
+        Current_GetPU(&ia_pu, &ib_pu, &ic_pu);
+
+        // 计算电流矢量幅值（使用Clarke变换到α-β坐标系）
+        float I_alpha_pu, I_beta_pu;
+        if (!Clarke_Transform(ia_pu, ib_pu, &I_alpha_pu, &I_beta_pu)) {
+            // Clarke变换失败，使用简化计算
+            I_alpha_pu = ia_pu;
+            I_beta_pu = 0.0f;
+        }
+
+        // 电流幅值 = sqrt(Iα² + Iβ²)
+        float current_magnitude_pu = sqrtf(I_alpha_pu * I_alpha_pu +
+                                          I_beta_pu * I_beta_pu);
+
+        // 转换为物理值（A）并存储
+        // 注意：这里需要从标幺值转换回物理值
+        // 假设电流基值为额定电流，需要从归一化模块获取
+        // 简化处理：直接使用标幺值作为相对幅值
+        pulses[i].current_sample = current_magnitude_pu;
+
+        // 7. 关闭PWM输出（停止施加电压）
+        uint32_t Tcm_zero = ARR_PERIOD / 2;  // 50%占空比 = 零电压矢量
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm_zero);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm_zero);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm_zero);
+
+        // 8. 等待电流衰减（确保下一次脉冲不受影响）
+        IPD_DelayUs(config->decay_time_us);
     }
-    
-    // 验证生成的脉冲序列是否有效
+
+    // 9. 验证生成的脉冲序列是否有效
     if (!IPD_ValidatePulseSequence(pulses)) {
         return false; // 序列验证失败
     }
-    
+
     return true; // 12脉冲序列执行成功
 }
 
