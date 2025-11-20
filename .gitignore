@@ -61,5 +61,7 @@ CoverageReport/
 test_cpputest/coverage_report/html/Modules/
 test_cpputest/coverage_report/html/third-party/
 
-.claude
+
 .claude/CLAUDE.md
+.claude/observer-theory-analysis.md
+.claude/settings.local.json

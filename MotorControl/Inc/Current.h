@@ -55,8 +55,8 @@ extern "C" {
 #define ADC_VREF                    3.3f    // TODO ADC参考电压 (V)
 
 /* 硬件参数（根据实际硬件调整）*/
-#define CURRENT_SENSE_RESISTOR      0.05f   // TODO 采样电阻 (Ω) -  待确认
-#define CURRENT_OPAMP_GAIN          10.0f   // TODO 运放增益 - 待确认
+#define CURRENT_SENSE_RESISTOR      0.001f   // TODO 采样电阻 (Ω) 丝印 R001​ 1mΩ
+#define CURRENT_OPAMP_GAIN          100.0f   // TODO 运放增益 芯片 INA4181A3IPWR 
 #define CURRENT_OFFSET_ADC          2048    // 电流零点对应的ADC值（12位中点）
 
 /* 电流采样数据结构 ----------------------------------------------------------*/

@@ -221,7 +221,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       // TIM1更新中断 - FOC控制环测试
       uint32_t Tcm1, Tcm2, Tcm3;
 
-      FOC_OpenLoopTest(500.0f, &Tcm1, &Tcm2, &Tcm3);
+      FOC_OpenLoopTest(5000.0f, &Tcm1, &Tcm2, &Tcm3);
 
       // 保存数据供vofa线程使用
       g_Tcm1 = Tcm1;

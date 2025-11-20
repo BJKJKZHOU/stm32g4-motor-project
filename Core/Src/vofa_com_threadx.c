@@ -11,7 +11,8 @@
 
 #include "vofa_com_threadx.h"
 #include "Current.h"
-
+#include "tim.h"
+#include "Vofa_STM32G474.h"
 
 
 // 声明外部全局变量 - 来自main.c中断

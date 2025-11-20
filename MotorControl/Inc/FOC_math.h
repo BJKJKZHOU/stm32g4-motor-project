@@ -143,6 +143,24 @@ void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float co
 // 谐波注入SPWM实现SVPWM 带扇区输出
 void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3, uint8_t *sector);
 
+/**
+ * @brief 根据PWM占空比和直流母线电压计算逆变器输出三相电压（实际值）
+ * @param Tcm1 A相PWM占空比计数值 (0-ARR_PERIOD)
+ * @param Tcm2 B相PWM占空比计数值 (0-ARR_PERIOD)
+ * @param Tcm3 C相PWM占空比计数值 (0-ARR_PERIOD)
+ * @param V_DC 直流母线电压 (V)
+ * @param Ua 输出：A相电压 (V)
+ * @param Ub 输出：B相电压 (V)
+ * @param Uc 输出：C相电压 (V)
+ *
+ * @note 计算流程：
+ *       1. PWM占空比计数值 → 占空比 (0-1)：duty = Tcm / ARR_PERIOD
+ *       2. 占空比 → 三相电压：Ua = (duty - 0.5) * V_DC
+ *       此函数模拟计算逆变器实际输出到电机的三相电压
+ */
+void PWM_To_Voltage_ABC(uint32_t Tcm1, uint32_t Tcm2, uint32_t Tcm3, float V_DC,
+                       float *Ua, float *Ub, float *Uc);
+
                     
 /*  低通滤波器模块 - 支持Hz和rad/s频率单位，单位在内部处理
     unit: true=Hz, false=rad/s

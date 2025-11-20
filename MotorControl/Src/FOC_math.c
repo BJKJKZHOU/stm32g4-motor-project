@@ -428,3 +428,36 @@ void SVPWM_SectorBased(float Valpha, float Vbeta, uint32_t *Tcm1, uint32_t *Tcm2
     *Tcm2 = foc_math_pu_to_ticks(duty_b);
     *Tcm3 = foc_math_pu_to_ticks(duty_c);
 }
+
+/**
+ * @brief 根据PWM占空比和直流母线电压计算逆变器输出三相电压（实际值）
+ *
+ * 此函数模拟逆变器的实际输出，用于观测器和控制算法中需要电压反馈的场景。
+ *
+ * 计算原理：
+ * 1. PWM占空比决定了每相桥臂上管的导通时间比例
+ * 2. 在中心对齐PWM模式下，相电压 = (占空比 - 0.5) * V_DC
+ * 3. 占空比0.5对应零电压，占空比1.0对应+V_DC/2，占空比0对应-V_DC/2
+ */
+void PWM_To_Voltage_ABC(uint32_t Tcm1, uint32_t Tcm2, uint32_t Tcm3, float V_DC,
+                       float *Ua, float *Ub, float *Uc)
+{
+    // 参数检查
+    if (Ua == NULL || Ub == NULL || Uc == NULL) {
+        return;
+    }
+
+    // 1. 将PWM计数值转换为占空比 [0, 1]
+    const float duty_a = (float)Tcm1 / (float)ARR_PERIOD;
+    const float duty_b = (float)Tcm2 / (float)ARR_PERIOD;
+    const float duty_c = (float)Tcm3 / (float)ARR_PERIOD;
+
+    // 2. 将占空比转换为相电压（实际值）
+    // 在中心对齐PWM模式下：
+    // - 占空比0.5 → 零电压
+    // - 占空比1.0 → +V_DC/2
+    // - 占空比0.0 → -V_DC/2
+    *Ua = (duty_a - 0.5f) * V_DC;
+    *Ub = (duty_b - 0.5f) * V_DC;
+    *Uc = (duty_c - 0.5f) * V_DC;
+}

@@ -303,3 +303,4 @@ void Vofa_ParseCommand(uint8_t *data, uint16_t length)
     extern void Command_Parse(char* command_line);
     Command_Parse(str_buffer);
 }
+

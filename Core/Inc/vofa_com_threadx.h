@@ -16,9 +16,6 @@ extern "C" {
 #endif
 
 #include "tx_api.h"
-#include "tim.h"
-
-#include "Vofa_STM32G474.h"
 
 
 /* VOFA通信线程配置 */

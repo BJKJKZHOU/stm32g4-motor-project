@@ -64,16 +64,25 @@ if(EXISTS "${CppUTest_INCLUDE_DIRS}/CppUTest/TestHarness.h" AND EXISTS "${CppUTe
     # 添加测试源文件
     target_sources(FOC_math_Tests_CPPUTest PRIVATE
         test_MotorControl/test_FOC_math_cpputest.cpp
-        test_MotorControl/test_Positioning_cpputest.cpp
+        # test_MotorControl/test_Positioning_cpputest.cpp  # 暂时注释掉，依赖硬件
+        test_MotorControl/test_motor_simulator.cpp
+        test_MotorControl/test_foc_integration.cpp
+        test_MotorControl/test_current_loop.cpp
         test_stubs/stm32_hal_stubs.c
         test_stubs/motor_params_stub.c
-        test_stubs/normalization_stub.c
+        test_stubs/motor_simulator.c
+        test_stubs/current_stub.c
+        test_stubs/pid_controller_stub.c
+        test_stubs/positioning_stub.c
     )
-    
+
     # 添加被测试的源文件
     target_sources(FOC_math_Tests_CPPUTest PRIVATE
         ../MotorControl/Src/FOC_math.c
-        ../MotorControl/Src/Positioning.c
+        ../MotorControl/Src/FOC_Loop.c
+        ../MotorControl/Src/normalization.c
+        ../Drivers/CMSIS/DSP/Source/SupportFunctions/arm_q31_to_float.c
+        # ../MotorControl/Src/Positioning.c  # 暂时注释掉，依赖硬件
     )
     
     # 添加包含目录
@@ -158,6 +167,20 @@ if(CppUTest_FOUND)
         DEPENDS FOC_math_Tests_CPPUTest
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Running ClarkeTransform test group"
+    )
+
+    add_custom_target(run_motor_simulator_tests
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/FOC_math_Tests_CPPUTest -sg MotorSimulator
+        DEPENDS FOC_math_Tests_CPPUTest
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Running MotorSimulator test groups"
+    )
+
+    add_custom_target(run_foc_integration_tests
+        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/FOC_math_Tests_CPPUTest -sg FOC_OpenLoop_Integration -sg ADC_Integration -sg Load_Disturbance
+        DEPENDS FOC_math_Tests_CPPUTest
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Running FOC Integration test groups"
     )
 endif()
 

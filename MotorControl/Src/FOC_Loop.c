@@ -15,8 +15,13 @@
 #include "FOC_Loop.h"
 #include "main.h"
 #include "FOC_math.h"
+#include "Current.h"
+#include "motor_params.h"
+#include "normalization.h"
+#include "Positioning.h"
 
 #include <math.h>
+#include <string.h>
 
 // 全局变量 - 用于跟踪电角度
 static float g_electrical_angle = 0.0f;
@@ -85,10 +90,230 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
     // 9. SVPWM调制：将αβ电压转换为PWM占空比
     //SVPWM_minmax(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3);
     SVPWM_SectorBased(U_alpha_pu, U_beta_pu, Tcm1, Tcm2, Tcm3, (uint8_t *)&sector);
-    // 调试信息更新 
+    // 调试信息更新
     g_debug_angle = g_electrical_angle;
     g_debug_sin = sin_theta;
     g_debug_cos = cos_theta;
     g_debug_frequency = frequency_rad_s;
+}
+
+/* ======================================================
+ * 电流环控制函数实现
+ * ======================================================
+ */
+
+/**
+ * @brief 电流环初始化
+ */
+void CurrentLoop_Init(CurrentLoop_t *loop, uint8_t motor_id, float dt,
+                     float kp_d, float ki_d, float kp_q, float ki_q,
+                     float observer_gamma)
+{
+    // 参数检查
+    if (loop == NULL) {
+        return;
+    }
+
+    // 清零结构体
+    memset(loop, 0, sizeof(CurrentLoop_t));
+
+    // 设置基本参数
+    loop->motor_id = motor_id;
+    loop->dt = dt;
+
+    // 初始化d轴PID控制器
+    loop->pid_d_params.kp = kp_d;
+    loop->pid_d_params.ki = ki_d;
+    loop->pid_d_params.kd = 0.0f;  // 电流环不使用微分项
+    loop->pid_d_params.Kfr_speed = 0.0f;  // 电流环不使用前馈
+    loop->pid_d_params.integral_limit = 1.0f;  // 积分限幅（标幺值）
+    loop->pid_d_params.output_limit = 1.0f;    // 输出限幅（标幺值）
+
+    loop->pid_d_state.integral = 0.0f;
+    loop->pid_d_state.prev_error = 0.0f;
+
+    // 初始化q轴PID控制器
+    loop->pid_q_params.kp = kp_q;
+    loop->pid_q_params.ki = ki_q;
+    loop->pid_q_params.kd = 0.0f;
+    loop->pid_q_params.Kfr_speed = 0.0f;
+    loop->pid_q_params.integral_limit = 1.0f;
+    loop->pid_q_params.output_limit = 1.0f;
+
+    loop->pid_q_state.integral = 0.0f;
+    loop->pid_q_state.prev_error = 0.0f;
+
+    // 初始化非线性观测器
+    NonlinearObs_Position_Init(&loop->position_observer, motor_id, observer_gamma);
+
+    // 初始化PWM输出为中点值（50%占空比）
+    loop->last_Tcm1 = ARR_PERIOD / 2;
+    loop->last_Tcm2 = ARR_PERIOD / 2;
+    loop->last_Tcm3 = ARR_PERIOD / 2;
+
+    // 设置标志
+    loop->is_initialized = true;
+    loop->is_running = false;
+}
+
+/**
+ * @brief 电流环复位
+ */
+void CurrentLoop_Reset(CurrentLoop_t *loop)
+{
+    if (loop == NULL || !loop->is_initialized) {
+        return;
+    }
+
+    // 复位PID状态
+    loop->pid_d_state.integral = 0.0f;
+    loop->pid_d_state.prev_error = 0.0f;
+    loop->pid_q_state.integral = 0.0f;
+    loop->pid_q_state.prev_error = 0.0f;
+
+    // 复位观测器
+    NonlinearObs_Position_Reset(&loop->position_observer);
+
+    // 复位PWM输出为中点值
+    loop->last_Tcm1 = ARR_PERIOD / 2;
+    loop->last_Tcm2 = ARR_PERIOD / 2;
+    loop->last_Tcm3 = ARR_PERIOD / 2;
+
+    // 清零监控变量
+    loop->id_setpoint = 0.0f;
+    loop->iq_setpoint = 0.0f;
+    loop->id_feedback = 0.0f;
+    loop->iq_feedback = 0.0f;
+    loop->ud_output = 0.0f;
+    loop->uq_output = 0.0f;
+    loop->theta_elec = 0.0f;
+    loop->omega_elec = 0.0f;
+
+    loop->is_running = false;
+}
+
+/**
+ * @brief 电流环主控制函数
+ */
+bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
+                    uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
+{
+    // 参数检查
+    if (loop == NULL || !loop->is_initialized) {
+        return false;
+    }
+    if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
+        return false;
+    }
+
+    // 获取电机参数
+    extern Motor_Params_t motor_params[];
+    const Motor_Params_t *motor = &motor_params[loop->motor_id];
+    const normalization_base_values_t *bases = Normalization_GetBases(loop->motor_id);
+
+    // ========================================================================
+    // 步骤1：ADC采集三相电流
+    // ========================================================================
+    float ia_pu, ib_pu, ic_pu;
+    Current_GetPU(&ia_pu, &ib_pu, &ic_pu);
+
+    // ========================================================================
+    // 步骤2：Clarke变换：abc → αβ
+    // ========================================================================
+    float i_alpha_pu, i_beta_pu;
+    if (!Clarke_Transform(ia_pu, ib_pu, &i_alpha_pu, &i_beta_pu)) {
+        return false;
+    }
+
+    // ========================================================================
+    // 步骤3：计算逆变器输出电压（αβ坐标系）
+    // ========================================================================
+    // 使用上一次的PWM输出计算实际电压
+    float Ua, Ub, Uc;
+    PWM_To_Voltage_ABC(loop->last_Tcm1, loop->last_Tcm2, loop->last_Tcm3,
+                      motor->V_DC, &Ua, &Ub, &Uc);
+
+    // Clarke变换：abc电压 → αβ电压
+    float u_alpha, u_beta;
+    Clarke_Transform(Ua, Ub, &u_alpha, &u_beta);
+
+    // 转换为标幺值
+    float u_alpha_pu = Normalization_ToPerUnit(loop->motor_id, NORMALIZE_VOLTAGE, u_alpha);
+    float u_beta_pu = Normalization_ToPerUnit(loop->motor_id, NORMALIZE_VOLTAGE, u_beta);
+
+    // ========================================================================
+    // 步骤4：非线性观测器估计电角度
+    // ========================================================================
+    NonlinearObs_Position_Update(&loop->position_observer,
+                                i_alpha_pu, i_beta_pu,
+                                u_alpha_pu, u_beta_pu,
+                                loop->dt);
+
+    // 获取估计的电角度
+    float theta_elec = NonlinearObs_Position_GetThetaRad(&loop->position_observer);
+    loop->theta_elec = theta_elec;
+
+    // ========================================================================
+    // 步骤5：计算sin和cos值，Park变换：αβ → dq（电流反馈）
+    // ========================================================================
+    float sin_theta, cos_theta;
+    Sine_Cosine(theta_elec, &sin_theta, &cos_theta);
+
+    float id_feedback, iq_feedback;
+    Park_Transform(i_alpha_pu, i_beta_pu, sin_theta, cos_theta, &id_feedback, &iq_feedback);
+
+    // 保存反馈值
+    loop->id_feedback = id_feedback;
+    loop->iq_feedback = iq_feedback;
+    loop->id_setpoint = id_ref;
+    loop->iq_setpoint = iq_ref;
+
+    // ========================================================================
+    // 步骤6：PID控制器计算dq轴电压（含解耦补偿）
+    // ========================================================================
+    // d轴PID控制
+    float ud_pid = PID_Controller(id_ref, id_feedback, loop->dt,
+                                  &loop->pid_d_params, &loop->pid_d_state);
+
+    // q轴PID控制
+    float uq_pid = PID_Controller(iq_ref, iq_feedback, loop->dt,
+                                  &loop->pid_q_params, &loop->pid_q_state);
+
+    // 解耦补偿（默认开启）
+    // 根据PID_controller.h中的说明：
+    // q轴解耦: ws * (Ld * id_feedback + Flux)
+    // d轴解耦: -ws * (Lq * iq_feedback)
+    // 这里需要电角速度ws，可以通过观测器或者差分计算得到
+    // 简化处理：暂时不加解耦，后续可以根据需要添加
+
+    // 最终输出电压
+    float ud_output = ud_pid;
+    float uq_output = uq_pid;
+
+    loop->ud_output = ud_output;
+    loop->uq_output = uq_output;
+
+    // ========================================================================
+    // 步骤7：逆Park变换：dq → αβ（电压输出）
+    // ========================================================================
+    float u_alpha_out_pu, u_beta_out_pu;
+    Inverse_Park_Transform(ud_output, uq_output, sin_theta, cos_theta,
+                          &u_alpha_out_pu, &u_beta_out_pu);
+
+    // ========================================================================
+    // 步骤8：SVPWM生成PWM占空比
+    // ========================================================================
+    uint8_t sector;
+    SVPWM_SectorBased(u_alpha_out_pu, u_beta_out_pu, Tcm1, Tcm2, Tcm3, &sector);
+
+    // 保存本次PWM输出，用于下次计算逆变器电压
+    loop->last_Tcm1 = *Tcm1;
+    loop->last_Tcm2 = *Tcm2;
+    loop->last_Tcm3 = *Tcm3;
+
+    // 设置运行标志
+    loop->is_running = true;
+
+    return true;
 }
 
