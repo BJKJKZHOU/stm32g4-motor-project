@@ -9,10 +9,11 @@ MotorControl 是为 STM32G4 平台设计的永磁同步电机（PMSM）磁场定
 - **多电机支持**：支持多个独立电机参数套，动态激活/停用
 - **归一化系统**：基于硬件能力的标幺值计算，确保数值稳定性
 - **电流采样**：双ADC同步采样，动态触发点调整，支持高占空比场景
-- **位置估计**：IPD脉冲法转子初始定位
+- **位置估计**：IPD脉冲法转子初始定位 + 非线性观测器无传感器位置估计
 - **FOC算法**：完整的Clarke/Park变换、SVPWM调制，集成CORDIC硬件加速
 - **统一控制器**：PID/PDFF统一算法，支持电流环和速度环
 - **实时命令**：串口命令交互，支持参数查看和修改
+- **电流环控制**：完整的闭环电流控制，集成非线性观测器
 
 ### 1.2 模块架构
 
@@ -24,13 +25,13 @@ MotorControl 是为 STM32G4 平台设计的永磁同步电机（PMSM）磁场定
 │  串口命令解析 | VOFA数据绘图 | 参数配置                      │
 ├─────────────────────────────────────────────────────────────┤
 │  管理层 (motor_params + normalization)                     │
-│  电机参数管理 | 归一化基值计算 | 标幺值/Q31转换              │
+│  电机参数管理 | 归一化基值计算 | 标幺值转换                  │
 ├─────────────────────────────────────────────────────────────┤
-│  控制层 (FOC_Loop + Current + Positioning)                 │
-│  FOC循环 | 电流采样 | 位置估计                              │
+│  控制层 (FOC_Loop + Current)                               │
+│  FOC循环 | 电流采样 | 电流环控制 | 位置估计                  │
 ├─────────────────────────────────────────────────────────────┤
-│  算法层 (FOC_math + PID_controller)                        │
-│  Clarke/Park变换 | SVPWM调制 | PID/PDFF控制器               │
+│  算法层 (FOC_math + PID_controller + Positioning)          │
+│  Clarke/Park变换 | SVPWM调制 | PID/PDFF控制器 | 位置观测器   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,7 +51,7 @@ MotorControl 是为 STM32G4 平台设计的永磁同步电机（PMSM）磁场定
 
 ### 2.2 归一化模块 (normalization)
 
-**功能**：基于硬件能力计算归一化基值，提供物理量与标幺值的双向转换，支持Q31定点运算。
+**功能**：基于硬件能力计算归一化基值，提供物理量与标幺值的双向转换，支持浮点和Q31格式。
 
 **归一化方案**（基于硬件实际能力）：
 ```
@@ -61,7 +62,7 @@ Flux_base = V_base/ω_base,  T_base = 1.5×Pn×Flux×I_base
 **核心API**：
 - `Normalization_Init()` / `UpdateMotor()` - 初始化和更新基值
 - `Normalization_ToPerUnit()` / `FromPerUnit()` - 物理量↔标幺值转换
-- `Normalization_ToQ31()` / `FromQ31()` - 物理量↔Q31定点转换
+- `Normalization_FromQ31WithBase()` - Q31格式转物理量（用于CORDIC硬件加速）
 
 ### 2.3 命令解析 (command)
 
@@ -90,16 +91,15 @@ Flux_base = V_base/ω_base,  T_base = 1.5×Pn×Flux×I_base
 PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 ```
 
-**核心API**（浮点版本）：
+**核心API**：
 - `Clarke_Transform()` - Clarke变换 (abc→αβ)，返回bool
 - `Park_Transform()` - Park变换 (αβ→dq)
 - `Inverse_Park_Transform()` - 逆Park变换 (dq→αβ)
-- `SVPWM()` / `SVPWM_SectorBased()` - 空间矢量调制，直接输出定时器计数值
+- `SVPWM_minmax()` / `SVPWM_SectorBased()` - 空间矢量调制，直接输出定时器计数值
 - `Sine_Cosine()` - 角度转正弦余弦（CORDIC硬件加速，性能提升3-5倍）
+- `PWM_To_Voltage_ABC()` - 根据PWM占空比计算逆变器输出电压
 
-**Q31定点版本**：`Clarke_TransformQ31()`, `Park_TransformQ31()`, `Inverse_Park_TransformQ31()`, `SVPWM_Q31()`, `Sine_CosineQ31()` - 适用于高频控制路径。
-
-**CORDIC优化**：使用STM32G4 CORDIC硬件加速三角函数计算，配置为6周期精度，Q1.31格式，失败时自动回退到ARM DSP库。
+**CORDIC优化**：使用STM32G4 CORDIC硬件加速三角函数计算，配置为6周期精度，Q1.31格式，失败时自动回退到ARM DSP库。Q31格式主要用于CORDIC硬件加速接口。
 
 ### 2.5 PID控制器 (PID_controller)
 
@@ -140,13 +140,29 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 
 ### 2.7 FOC循环 (FOC_Loop)
 
-**功能**：实现FOC开环测试和控制循环。
+**功能**：实现FOC开环测试和电流环控制。
 
-**核心API**：
+**开环测试API**：
 - `FOC_OpenLoopTest()` - 开环测试函数
   - 输入：电频率参考值（rad/s）
   - 输出：三相PWM占空比计数值
   - 功能：根据电频率计算角度增量，生成三相正弦波，完整FOC变换流程
+
+**电流环控制**：
+- `CurrentLoop_t` - 电流环控制器数据结构
+- `CurrentLoop_Init()` - 初始化电流环
+- `CurrentLoop_Run()` - 执行电流环控制
+- `CurrentLoop_Reset()` - 复位电流环状态
+
+**电流环控制流程**：
+1. ADC采集三相电流
+2. Clarke变换：abc → αβ
+3. 计算逆变器输出电压（αβ坐标系）
+4. 非线性观测器估计电角度
+5. Park变换：αβ → dq（电流反馈）
+6. PID控制器计算dq轴电压（含解耦补偿）
+7. 逆Park变换：dq → αβ（电压输出）
+8. SVPWM生成PWM占空比
 
 **调试变量**：
 - `g_debug_angle` - 当前电角度（rad）
@@ -156,7 +172,9 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 
 ### 2.8 位置估计 (Positioning)
 
-**功能**：IPD脉冲法转子初始定位。
+**功能**：IPD脉冲法转子初始定位 + 非线性观测器无传感器位置估计。
+
+#### IPD脉冲法转子初始定位
 
 **IPD脉冲法原理**：
 - 在d轴发送12个特定角度的电压脉冲（每个脉冲角度差30°）
@@ -165,10 +183,24 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 - 电流响应峰值大的为N极，最大峰值对应的角度为转子位置
 
 **核心API**：
-- `IPD_CalculateRotorPosition()` - 计算转子位置
-  - 输入：12个脉冲的角度和电流采样值
-  - 输出：转子电角度（度）
+- `IPD_DetectRotorPosition()` - 检测转子初始位置（简化接口）
 - `IPD_ExecutePulseSequence()` - 执行完整的12脉冲定位序列
+- `IPD_CalculateRotorPosition()` - 计算转子位置
+
+#### 非线性观测器无传感器位置估计
+
+**基于论文**：Sensorless Control of Surface-Mount Permanent-Magnet Synchronous Motors Based on a Nonlinear Observer
+
+**核心API**：
+- `NonlinearObs_Position_Init()` - 初始化非线性观测器
+- `NonlinearObs_Position_Update()` - 更新观测器状态
+- `NonlinearObs_Position_GetThetaRad()` - 获取位置估计（弧度）
+- `NonlinearObs_Position_GetThetaDeg()` - 获取位置估计（度）
+
+**观测器特性**：
+- 基于磁链观测的位置估计
+- 支持收敛判定和稳定性检测
+- 集成归一化系统，支持标幺值运算
 
 ## 3. 系统集成
 
@@ -201,46 +233,47 @@ int main(void) {
 }
 ```
 
-### 3.2 FOC控制循环示例
+### 3.2 电流环控制示例
 
 ```c
-void FOC_Control_Loop(void) {
-    // 1. 获取电流（标幺值）
-    float ia_pu, ib_pu, ic_pu;
-    Current_GetPU(&ia_pu, &ib_pu, &ic_pu);
+// 全局电流环实例
+CurrentLoop_t g_CurrentLoop;
 
-    // 2. Clarke变换
-    float I_alpha_pu, I_beta_pu;
-    if (!Clarke_Transform(ia_pu, ib_pu, &I_alpha_pu, &I_beta_pu)) return;
+// 初始化电流环
+void CurrentLoop_Init_Example(void) {
+    CurrentLoop_Init(&g_CurrentLoop, MOTOR_0, 0.00005f,  // 50us控制周期
+                     0.5f, 0.1f,  // d轴PID参数
+                     0.5f, 0.1f,  // q轴PID参数
+                     100.0f);     // 观测器增益
+}
 
-    // 3. 获取角度和三角函数（CORDIC加速）
-    float theta_e = get_electrical_angle();
-    float sin_theta, cos_theta;
-    Sine_Cosine(theta_e, &sin_theta, &cos_theta);
+// 在ADC中断中执行电流环控制
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc) {
+    if (hadc->Instance == ADC1) {
+        // 执行电流环控制
+        uint32_t Tcm1, Tcm2, Tcm3;
+        CurrentLoop_Run(&g_CurrentLoop, 0.0f, 0.5f,  // id_ref=0, iq_ref=0.5标幺值
+                       &Tcm1, &Tcm2, &Tcm3);
+        
+        // 更新PWM输出
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
+    }
+}
+```
 
-    // 4. Park变换
-    float id_fb, iq_fb;
-    Park_Transform(I_alpha_pu, I_beta_pu, sin_theta, cos_theta, &id_fb, &iq_fb);
+### 3.3 开环测试示例
 
-    // 5. PID控制
-    float vd_pu = PID_Controller(0.0f, id_fb, dt, &id_params, &id_state);
-    float vq_pu = PID_Controller(iq_ref, iq_fb, dt, &iq_params, &iq_state);
-
-    // 6. 逆Park变换
-    float U_alpha_pu, U_beta_pu;
-    Inverse_Park_Transform(vd_pu, vq_pu, sin_theta, cos_theta, &U_alpha_pu, &U_beta_pu);
-
-    // 7. SVPWM调制
+```c
+// 在TIM1中断中调用
+void TIM1_UP_IRQHandler(void) {
     uint32_t Tcm1, Tcm2, Tcm3;
-    SVPWM(U_alpha_pu, U_beta_pu, &Tcm1, &Tcm2, &Tcm3);
-
-    // 8. 更新PWM
+    float frequency = 10.0f;  // 10 rad/s
+    FOC_OpenLoopTest(frequency, &Tcm1, &Tcm2, &Tcm3);
     TIM1->CCR1 = Tcm1;
     TIM1->CCR2 = Tcm2;
     TIM1->CCR3 = Tcm3;
-
-    // 9. 动态调整ADC触发点
-    Update_ADC_Trigger_Point(Tcm1, Tcm2, Tcm3);
 }
 ```
 
@@ -322,7 +355,20 @@ set motor0 enable
 plot
 ```
 
-### 4.3 开环测试
+### 4.3 电流环控制配置
+
+```c
+// 初始化电流环
+CurrentLoop_Init(&g_CurrentLoop, MOTOR_0, 0.00005f,  // 50us控制周期
+                 0.5f, 0.1f,  // d轴PID参数 (kp, ki)
+                 0.5f, 0.1f,  // q轴PID参数 (kp, ki)
+                 100.0f);     // 观测器增益
+
+// 启动电流环
+g_CurrentLoop.is_running = true;
+```
+
+### 4.4 开环测试
 
 ```c
 // 在TIM1中断中调用
@@ -386,8 +432,8 @@ void TIM1_UP_IRQHandler(void) {
 
 ---
 
-**文档版本**：v2.1
-**最后更新**：2025-11-09
+**文档版本**：v2.2
+**最后更新**：2025-11-20
 **文档作者**：AI、ZHOUHENG  
 **特别感谢**：  
     任何在网上分享电机控制相关的知识和经验的人  
