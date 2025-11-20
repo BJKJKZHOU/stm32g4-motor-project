@@ -116,6 +116,7 @@ void MX_TIM1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM1_Init 2 */
+  // 启动TIM1的更新中断 
   HAL_TIM_Base_Start_IT(&htim1);
   
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);  // 启动三相PWM输出
@@ -125,7 +126,6 @@ void MX_TIM1_Init(void)
   HAL_TIMEx_PWMN_Start_IT(&htim1, TIM_CHANNEL_2);
   HAL_TIMEx_PWMN_Start_IT(&htim1, TIM_CHANNEL_3);
   
-
   /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);
 

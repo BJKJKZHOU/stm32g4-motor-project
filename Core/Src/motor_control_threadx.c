@@ -10,6 +10,12 @@
 */
 
 #include "motor_control_threadx.h"
+#include "FOC_Loop.h"
+#include "main.h"
+
+
+// 定义全局电流环实例
+CurrentLoop_t g_CurrentLoop;
 
 TX_THREAD motor_control_thread;
 
@@ -41,17 +47,26 @@ UINT MOTOR_ThreadX_Init(VOID *memory_ptr)
 void motor_control_thread_entry(ULONG thread_input)
 {
   UNUSED(thread_input);
-  // 启动TIM1的更新中断（用于FOC控制循环）
   
+  // 电流环初始化
+  CurrentLoop_Init(&g_CurrentLoop,0, TPWM_PERIOD,   
+                  10.0f, 100.0f,  // d轴PID: kp=10, ki=100
+                  10.0f, 100.0f,  // q轴PID: kp=10, ki=100
+                  100.0f);         // 观测器gamma=100
+
+  // 启动电流环
+  g_CurrentLoop.is_running = true;
+
+
 
   while (1)
   {
-     
+    // 设置电流环设定值（示例：id_ref=0, iq_ref=0.5）
+    g_CurrentLoop.id_setpoint = 0.0f;    // d轴电流设定值
+    g_CurrentLoop.iq_setpoint = 0.5f;    // q轴电流设定值
     
-    
-    
-
-    tx_thread_sleep(1);    
+    // 线程休眠，等待下一次控制周期
+    tx_thread_sleep(1);  // 休眠10个tick，具体时间根据系统配置调整
   }
 }
 

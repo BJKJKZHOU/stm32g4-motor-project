@@ -69,6 +69,7 @@ extern "C" {
 
 /* USER CODE BEGIN EM */
 
+
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

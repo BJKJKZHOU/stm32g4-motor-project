@@ -209,7 +209,7 @@ bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
     // 获取电机参数
     extern Motor_Params_t motor_params[];
     const Motor_Params_t *motor = &motor_params[loop->motor_id];
-    const normalization_base_values_t *bases = Normalization_GetBases(loop->motor_id);
+    // const normalization_base_values_t *bases = Normalization_GetBases(loop->motor_id);  // 未使用，已注释
 
     // ========================================================================
     // 步骤1：ADC采集三相电流
@@ -235,7 +235,7 @@ bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
 
     // Clarke变换：abc电压 → αβ电压
     float u_alpha, u_beta;
-    Clarke_Transform(Ua, Ub, &u_alpha, &u_beta);
+    Clarke_Transform_Physical(Ua, Ub, &u_alpha, &u_beta);
 
     // 转换为标幺值
     float u_alpha_pu = Normalization_ToPerUnit(loop->motor_id, NORMALIZE_VOLTAGE, u_alpha);

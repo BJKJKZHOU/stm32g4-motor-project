@@ -12,7 +12,8 @@
 #include "Current.h"
 #include "Normalization.h"
 #include "motor_params.h"
-#include "tim.h"
+#include "FOC_Loop.h"  // 添加FOC循环头文件用于电流环控制
+#include "tim.h"  // 添加TIM头文件用于PWM控制
 #include "adc.h"  // 双ADC模式需要访问hadc1和hadc2
 /* 全局变量定义 --------------------------------------------------------------*/
 CurrentSample_t g_CurrentSample = {0};
@@ -223,8 +224,11 @@ void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t dut
  * @note   在双ADC同步模式下，只有Master（ADC1）会触发中断
  *         ADC1采样：PA0(Ia), PA1(Ib)
  *         ADC2采样：PA6(Ic), PA7(Vbus)
- *         TIM1 CH4双边沿触发，每个PWM周期调用2次
+ *         TIM1 CH4触发
  */
+ 
+/* 全局电流环实例声明 */
+extern CurrentLoop_t g_CurrentLoop;
 
 CCMRAM_FUNC void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
@@ -237,7 +241,6 @@ CCMRAM_FUNC void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
 
         // 读取ADC2的数据（Ic和Vbus）
         g_CurrentSample.adc_raw[2] = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);  // Ic (PA6)
-        // uint16_t vbus_adc = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);  // Vbus (PA7)，如果需要
 
         // 转换为物理值
         for (int i = 0; i < CURRENT_SAMPLE_CHANNELS; i++)
@@ -250,9 +253,19 @@ CCMRAM_FUNC void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
         g_CurrentSample.sample_count++;
         g_CurrentSample.sample_valid = 1;
 
-        // TODO: 在此处调用FOC控制循环或将数据传递给控制任务
-        // 例如：FOC_CurrentLoop(&g_CurrentSample);
-
-        
+        // 在ADC中断中执行电流环控制
+        if (g_CurrentLoop.is_initialized && g_CurrentLoop.is_running) {
+            uint32_t Tcm1, Tcm2, Tcm3;
+            
+            // 执行电流环控制
+            CurrentLoop_Run(&g_CurrentLoop, g_CurrentLoop.id_setpoint, g_CurrentLoop.iq_setpoint,
+                           &Tcm1, &Tcm2, &Tcm3);
+            
+            // 立即更新PWM输出
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
+            __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
+        }
     }
 }
+

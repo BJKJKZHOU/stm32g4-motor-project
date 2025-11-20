@@ -136,6 +136,9 @@ void SVPWM_minmax(float U_alpha_pu, float U_beta_pu, uint32_t *Tcm1, uint32_t *T
 
 bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta_pu);
 
+// 提供物理量的 Clarke_Transform
+bool Clarke_Transform_Physical(float a, float b, float *alpha, float *beta);
+
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e);
 
 void Park_Transform(float I_alpha_pu, float I_beta_pu, float sin_theta, float cos_theta, float *I_d, float *I_q);

@@ -26,6 +26,7 @@
 #include "vofa_com_threadx.h"
 #include "test_threadx.h"
 #include "motor_control_threadx.h"
+#include "main.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

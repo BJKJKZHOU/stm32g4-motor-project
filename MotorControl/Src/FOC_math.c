@@ -179,6 +179,17 @@ bool Clarke_Transform(float ia_pu, float ib_pu, float *I_alpha_pu, float *I_beta
     return true;
 }
 
+bool Clarke_Transform_Physical(float a, float b, float *alpha, float *beta)
+{
+    if (alpha == NULL || beta == NULL) {
+        return false;
+    }
+    
+    *alpha = a;
+    *beta  = (a + 2.0f * b) * INV_SQRT3_F;
+    
+    return true;
+}
 
 void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
 {

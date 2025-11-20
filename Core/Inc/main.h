@@ -61,7 +61,12 @@ void Error_Handler(void);
 #define PWM_FREQUENCY 20000
 
 /* USER CODE BEGIN Private defines */
+
+
+
 #define ARR_PERIOD ((uint32_t)((TIM_CLK_MHz * 1000000.0f / PWM_FREQUENCY) / 2.0f)) // =4250
+
+#define TPWM_PERIOD (1.0f/PWM_FREQUENCY) // 1/20000 = 0.00005s
 
 #define PI 3.14159265358979323846f
 
