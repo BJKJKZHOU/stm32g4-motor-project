@@ -268,10 +268,81 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
 
 // 获取位置估计结果 (弧度)
 float NonlinearObs_Position_GetThetaRad(NonlinearObs_Position_t *obs);
-// 获取位置估计结果 (度)  
+// 获取位置估计结果 (度)
 float NonlinearObs_Position_GetThetaDeg(NonlinearObs_Position_t *obs);
 
+//=============================================================================
+// PLL 速度观测器 (基于位置反馈提取速度)
+//=============================================================================
 
+/**
+ * @brief PLL速度观测器结构体
+ */
+typedef struct {
+    uint8_t motor_id;           // 电机ID，用于获取极对数等参数
+
+    // PLL增益参数
+    float kp;                   // 比例增益（推荐：100-500）
+    float ki;                   // 积分增益（推荐：1000-5000）
+
+    // 状态变量（内部使用）
+    float theta_hat_rad;        // PLL估计的角度（电角度，弧度）
+    float omega_hat_rad_s;      // PLL估计的电角速度（rad/s）
+
+    // 输出变量（用户读取）
+    float theta_hat_deg;        // PLL估计的角度（电角度，度）
+    float speed_elec_rpm;       // 电转速（RPM）
+    float speed_mech_rpm;       // 机械转速（RPM，已除以极对数）
+
+    // 状态标志
+    bool is_initialized;        // 初始化标志
+
+} PLL_SpeedObserver_t;
+
+/**
+ * @brief PLL速度观测器初始化
+ *
+ * @param pll PLL观测器结构体指针
+ * @param motor_id 电机ID（用于获取极对数）
+ * @param kp 比例增益（推荐：100-500）
+ * @param ki 积分增益（推荐：1000-5000）
+ * @param initial_theta_rad 初始角度（电角度，弧度）
+ *                          可从IPD或非线性观测器获取
+ * @note 使用示例：
+ *       ```c
+ *       PLL_SpeedObserver_t pll_obs;
+ *
+ *       // 从非线性观测器获取初始角度
+ *       float init_angle = NonlinearObs_Position_GetThetaRad(&nonlinear_obs);
+ *
+ *       // 初始化PLL（Kp=200, Ki=2000）
+ *       PLL_SpeedObserver_Init(&pll_obs, 0, 200.0f, 2000.0f, init_angle);
+ *       ```
+ */
+void PLL_SpeedObserver_Init(PLL_SpeedObserver_t *pll,
+                            uint8_t motor_id,
+                            float kp,
+                            float ki,
+                            float initial_theta_rad);
+
+/**
+ * @brief PLL速度观测器更新
+ * @param pll PLL观测器结构体指针
+ * @param theta_measured_rad 测量角度（电角度，弧度）
+ *                           通常来自非线性观测器或编码器
+ * @param dt 采样时间（秒），例如 0.00005f（20kHz）
+ */
+void PLL_SpeedObserver_Update(PLL_SpeedObserver_t *pll,
+                              float theta_measured_rad,
+                              float dt);
+
+/**
+ * @brief 重置PLL速度观测器
+ *
+ * @param pll PLL观测器结构体指针
+ * @param new_theta_rad 新的初始角度（电角度，弧度）
+ */
+void PLL_SpeedObserver_Reset(PLL_SpeedObserver_t *pll, float new_theta_rad);
 
 
 #ifdef __cplusplus

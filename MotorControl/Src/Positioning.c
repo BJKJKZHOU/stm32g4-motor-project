@@ -599,3 +599,175 @@ float NonlinearObs_Position_GetThetaDeg(NonlinearObs_Position_t *obs)
     }
     return obs->theta_hat_deg;
 }
+
+//=============================================================================
+// PLL 速度观测器实现
+//=============================================================================
+
+/**
+ * @brief 角度归一化到 [-π, π]
+ * @param angle_rad 输入角度（弧度）
+ * @return 归一化后的角度（弧度）
+ */
+static inline float PLL_NormalizeAngle(float angle_rad)
+{
+    // 使用 fmodf 将角度限制在 [-2π, 2π] 范围内
+    angle_rad = fmodf(angle_rad, 2.0f * PI);
+
+    // 将角度映射到 [-π, π]
+    if (angle_rad > PI) {
+        angle_rad -= 2.0f * PI;
+    } else if (angle_rad < -PI) {
+        angle_rad += 2.0f * PI;
+    }
+
+    return angle_rad;
+}
+
+/**
+ * @brief PLL速度观测器初始化
+ *
+ * @param pll PLL观测器结构体指针
+ * @param motor_id 电机ID（用于获取极对数）
+ * @param kp 比例增益（推荐：100-500）
+ * @param ki 积分增益（推荐：1000-5000）
+ * @param initial_theta_rad 初始角度（电角度，弧度）
+ */
+void PLL_SpeedObserver_Init(PLL_SpeedObserver_t *pll,
+                            uint8_t motor_id,
+                            float kp,
+                            float ki,
+                            float initial_theta_rad)
+{
+    if (pll == NULL) {
+        return;
+    }
+
+    // 参数检查
+    if (kp < 0.0f || ki < 0.0f) {
+        return;  // 增益必须为正
+    }
+
+    // 保存配置参数
+    pll->motor_id = motor_id;
+    pll->kp = kp;
+    pll->ki = ki;
+
+    // 初始化状态变量
+    pll->theta_hat_rad = PLL_NormalizeAngle(initial_theta_rad);
+    pll->omega_hat_rad_s = 0.0f;  // 初始速度为0
+
+    // 初始化输出变量
+    pll->theta_hat_deg = pll->theta_hat_rad * 180.0f / PI;
+    if (pll->theta_hat_deg < 0.0f) {
+        pll->theta_hat_deg += 360.0f;
+    }
+    pll->speed_elec_rpm = 0.0f;
+    pll->speed_mech_rpm = 0.0f;
+
+    // 设置初始化标志
+    pll->is_initialized = true;
+}
+
+/**
+ * @brief PLL速度观测器更新（每个控制周期调用一次）
+ *
+ * @param pll PLL观测器结构体指针
+ * @param theta_measured_rad 测量角度（电角度，弧度）
+ * @param dt 采样时间（秒）
+ *
+ * @note 实现原理（基于参考代码）：
+ *       1. 计算位置误差：Δθ = θ_measured - θ_hat
+ *       2. 归一化误差到 [-π, π]（处理角度跳变）
+ *       3. 速度更新：ω_hat += Ki * Δθ * dt  （积分环节）
+ *       4. 位置更新：θ_hat += (ω_hat + Kp * Δθ) * dt  （比例+积分）
+ *       5. 归一化位置到 [-π, π]
+ *       6. 计算输出：角度（度）、电转速（RPM）、机械转速（RPM）
+ */
+void PLL_SpeedObserver_Update(PLL_SpeedObserver_t *pll,
+                              float theta_measured_rad,
+                              float dt)
+{
+    if (pll == NULL || !pll->is_initialized) {
+        return;
+    }
+
+    // 参数检查
+    if (dt <= 0.0f || dt > 0.01f) {
+        return;  // 采样时间应在合理范围内（0-10ms）
+    }
+
+    // 检查输入角度有效性
+    if (!isfinite(theta_measured_rad)) {
+        return;
+    }
+
+    // 步骤1: 计算位置误差 Δθ = θ_measured - θ_hat
+    float delta_theta = theta_measured_rad - pll->theta_hat_rad;
+
+    // 步骤2: 归一化误差到 [-π, π]（处理角度跳变）
+    delta_theta = PLL_NormalizeAngle(delta_theta);
+
+    // 步骤3: 速度更新（积分环节）
+    // ω_hat += Ki * Δθ * dt
+    pll->omega_hat_rad_s += pll->ki * delta_theta * dt;
+
+    // 步骤4: 位置更新（比例+积分）
+    // θ_hat += (ω_hat + Kp * Δθ) * dt
+    pll->theta_hat_rad += (pll->omega_hat_rad_s + pll->kp * delta_theta) * dt;
+
+    // 步骤5: 归一化位置到 [-π, π]
+    pll->theta_hat_rad = PLL_NormalizeAngle(pll->theta_hat_rad);
+
+    // 步骤6: 计算输出变量
+
+    // 6.1 角度（度），范围 [0, 360)
+    pll->theta_hat_deg = pll->theta_hat_rad * 180.0f / PI;
+    if (pll->theta_hat_deg < 0.0f) {
+        pll->theta_hat_deg += 360.0f;
+    }
+
+    // 6.2 电转速（RPM）
+    // RPM = (rad/s) * (60 / 2π)
+    pll->speed_elec_rpm = pll->omega_hat_rad_s * 60.0f / (2.0f * PI);
+
+    // 6.3 机械转速（RPM）= 电转速 / 极对数
+    // 从电机参数模块获取极对数
+    float pole_pairs = motor_params[pll->motor_id].Pn;
+    if (pole_pairs > 0.0f) {
+        pll->speed_mech_rpm = pll->speed_elec_rpm / pole_pairs;
+    } else {
+        pll->speed_mech_rpm = 0.0f;  // 极对数无效，返回0
+    }
+
+    // 检查输出有效性
+    if (!isfinite(pll->omega_hat_rad_s)) {
+        pll->omega_hat_rad_s = 0.0f;
+    }
+    if (!isfinite(pll->speed_elec_rpm)) {
+        pll->speed_elec_rpm = 0.0f;
+    }
+    if (!isfinite(pll->speed_mech_rpm)) {
+        pll->speed_mech_rpm = 0.0f;
+    }
+}
+
+
+void PLL_SpeedObserver_Reset(PLL_SpeedObserver_t *pll, float new_theta_rad)
+{
+    if (pll == NULL || !pll->is_initialized) {
+        return;
+    }
+
+    // 重置状态变量
+    pll->theta_hat_rad = PLL_NormalizeAngle(new_theta_rad);
+    pll->omega_hat_rad_s = 0.0f;
+
+    // 重置输出变量
+    pll->theta_hat_deg = pll->theta_hat_rad * 180.0f / PI;
+    if (pll->theta_hat_deg < 0.0f) {
+        pll->theta_hat_deg += 360.0f;
+    }
+    pll->speed_elec_rpm = 0.0f;
+    pll->speed_mech_rpm = 0.0f;
+}
