@@ -285,16 +285,12 @@ typedef struct {
     float kp;                   // 比例增益（推荐：100-500）
     float ki;                   // 积分增益（推荐：1000-5000）
 
-    // 状态变量（内部使用）
     float theta_hat_rad;        // PLL估计的角度（电角度，弧度）
     float omega_hat_rad_s;      // PLL估计的电角速度（rad/s）
-
-    // 输出变量（用户读取）
     float theta_hat_deg;        // PLL估计的角度（电角度，度）
     float speed_elec_rpm;       // 电转速（RPM）
     float speed_mech_rpm;       // 机械转速（RPM，已除以极对数）
 
-    // 状态标志
     bool is_initialized;        // 初始化标志
 
 } PLL_SpeedObserver_t;
