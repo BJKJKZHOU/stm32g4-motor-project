@@ -1,9 +1,9 @@
 /*============================================================================
     File Name     : Location_Plan.h
-    Description   : 位置规划模块 梯形和S型加减速等
+    Description   : 位置规划模块 - 速度模式和位置模式
     Author        : ZHOUHENG
     Date          : 2025-11-22
-    ----------------------------------------------------------------------   
+    ----------------------------------------------------------------------
     速度模式：参数 加速度、减速度、最大速度(目标速度)、运行时间（可选）
         设定加/减速参数，目标速度，可选运行时间或持续运行（不考虑位置）
         T型加减速
@@ -12,14 +12,14 @@
         达到加速和持续运行时间和之后开始减速，
         运行时间=加速时间+持续运行时间+减速时间
         没有运行时间的话，持续运行模式收到停止信号再按设定方式减速，没有停止信号就一直按照目标速度运行。
-        
+
 
         如果全程时间不足，达不到最大速度的话，按照设定的加减速进行速度的三角型规划，
         此时的全程时间=加速时间+减速时间
 
     位置模式：参数 加速度、减速度、最大速度(目标速度)、目标位置、电子齿轮比(可选)
 
-        电子齿轮比= 直线位移位置(mm) / 机械角度位置(2π rad、360°、一圈)    
+        电子齿轮比= 直线位移位置(mm) / 机械角度位置(2π rad、360°、一圈)
 
         T型加减速
         S型加减速
@@ -40,7 +40,7 @@
             无论是 机械角度位置还是直线位移位置，都支持增量式和绝对式目标位置设定
                 增量式：目标位置为当前位置的增量
                 绝对式：目标位置为绝对位置
-                
+
         需要计算运动的位置状态，需要多少位置能加速到目标速度，
             匀速运行需要多少位置，能匀速运动多少位置，减速需要多少位置
             全过程的位置=加速时间内移动的位置+匀速运行的位置+减速时间内移动的位置
@@ -48,29 +48,117 @@
             如果全程位置不足以达到最大速度，按照设定的加减速进行位置的三角型规划，
             此时的全程位置=加速时间内移动的位置+减速时间内移动的位置
 
-*=============================================================================
-*/
+*=============================================================================*/
 
 
 #ifndef LOCATION_PLAN_H
 #define LOCATION_PLAN_H
 
-
-
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// ============================================================================
+// 速度模式 - 混合版接口（核心2函数 + 扩展查询函数）
+// ============================================================================
 
+/**
+ * @brief 速度模式配置参数
+ */
+typedef struct {
+    float acceleration;          // 加速度 (rad/s²)
+    float deceleration;          // 减速度 (rad/s²)
+    float target_velocity;       // 目标速度 (rad/s)
+    float run_time;              // 运行时间 (s)，0=持续运行模式
+    bool use_scurve;             // true=S型曲线, false=T型曲线
+} VelocityMode_Config_t;
 
+/**
+ * @brief 速度模式运行时状态（内部使用）
+ */
+typedef struct {
+    // 配置参数（缓存）
+    float acceleration;
+    float deceleration;
+    float target_velocity;
+    float run_time;
+    bool use_scurve;
 
+    // 预计算参数
+    float accel_time;            // 加速时间 (s)
+    float cruise_time;           // 匀速时间 (s)
+    float decel_time;            // 减速时间 (s)
+    bool is_triangular;          // 三角型标志
+    float peak_velocity;         // 峰值速度 (rad/s)
 
+    // 运行时状态
+    float elapsed_time;          // 当前阶段累计时间 (s)
+    float current_velocity;      // 当前速度 (rad/s)
+    uint8_t phase;               // 当前阶段：0=加速, 1=匀速, 2=减速, 3=停止
+    bool stop_requested;         // 停止请求标志（持续模式）
+    float stop_velocity;         // 停止时的速度（用于重新计算减速时间）
 
+} VelocityMode_t;
 
+// ============================================================================
+// 核心接口（2个函数）
+// ============================================================================
 
+/**
+ * @brief 速度模式初始化
+ * @param vm 速度模式实例指针
+ * @param config 配置参数
+ *
+ * @note 此函数执行：
+ *       1. 参数验证
+ *       2. 预计算加速/减速/匀速时间
+ *       3. 判断三角型/梯形
+ *       4. 初始化内部状态
+ */
+void VelocityMode_Init(VelocityMode_t *vm, const VelocityMode_Config_t *config);
 
+/**
+ * @brief 速度模式运行（每个控制周期调用）
+ * @param vm 速度模式实例指针
+ * @param dt 控制周期 (s)
+ * @param stop_request 停止请求（持续模式有效），true=请求停止
+ * @return 当前速度设定值 (rad/s)
+ *
+ * @note 此函数自动处理：
+ *       - 状态转换（加速→匀速→减速→停止）
+ *       - 三角型/梯形自动切换
+ *       - 停止信号响应（持续模式）
+ *       - 运行结束后自动返回0
+ */
+float VelocityMode_Run(VelocityMode_t *vm, float dt, bool stop_request);
 
+// ============================================================================
+// 扩展查询接口（3个函数）
+// ============================================================================
+
+/**
+ * @brief 获取当前阶段
+ * @param vm 速度模式实例指针
+ * @return 当前阶段：0=加速, 1=匀速, 2=减速, 3=停止
+ */
+uint8_t VelocityMode_GetPhase(const VelocityMode_t *vm);
+
+/**
+ * @brief 是否完成
+ * @param vm 速度模式实例指针
+ * @return true=已完成（停止状态）, false=运行中
+ */
+bool VelocityMode_IsFinished(const VelocityMode_t *vm);
+
+/**
+ * @brief 获取当前速度
+ * @param vm 速度模式实例指针
+ * @return 当前速度 (rad/s)
+ */
+float VelocityMode_GetCurrentVelocity(const VelocityMode_t *vm);
 
 #ifdef __cplusplus
 }
@@ -78,4 +166,3 @@ extern "C" {
 #endif
 
 #endif // LOCATION_PLAN_H
-
