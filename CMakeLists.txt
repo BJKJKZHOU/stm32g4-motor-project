@@ -63,6 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     MotorControl/Src/Positioning.c
     MotorControl/Src/FOC_Loop.c
     MotorControl/Src/Current.c
+    MotorControl/Src/Location_Plan.c
 
     Drivers/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
     Drivers/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_f32.c
