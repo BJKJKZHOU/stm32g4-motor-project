@@ -98,8 +98,7 @@ typedef struct {
     float elapsed_time;          // 当前阶段累计时间 (s)
     float current_velocity;      // 当前速度 (rad/s)
     uint8_t phase;               // 当前阶段：0=加速, 1=匀速, 2=减速, 3=停止
-    bool stop_requested;         // 停止请求标志（持续模式）
-    float stop_velocity;         // 停止时的速度（用于重新计算减速时间）
+    float decel_start_velocity;  // 减速段起始速度 (rad/s)，统一减速基准
 
 } VelocityMode_t;
 
