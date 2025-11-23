@@ -28,6 +28,38 @@ static inline float clamp(float value, float min, float max) {
 }
 
 /**
+ * @brief Clamp elapsed time to [0, duration] to avoid evaluating past a phase boundary.
+ */
+static inline float clamp_time(float value, float duration) {
+    if (duration <= 0.0f) {
+        return 0.0f;
+    }
+    return clamp(value, 0.0f, duration);
+}
+
+/**
+ * @brief Normalize elapsed time to [0,1] with clamping.
+ */
+static inline float normalized_time(float value, float duration) {
+    if (duration <= 0.0f) {
+        return 1.0f;
+    }
+    float ratio = value / duration;
+    return clamp(ratio, 0.0f, 1.0f);
+}
+
+/**
+ * @brief 判断阶段时间是否到达，包含一个很小的容差，避免浮点误差导致无法切换。
+ */
+static inline bool reached_phase_end(float elapsed, float duration) {
+    if (duration <= 0.0f) {
+        return true;
+    }
+    const float phase_eps = 1e-5f;
+    return (elapsed + phase_eps) >= duration;
+}
+
+/**
  * @brief 三角型判断并计算峰值速度
  * @param accel 加速度 (rad/s²)
  * @param decel 减速度 (rad/s²)
@@ -65,14 +97,16 @@ static bool is_triangular_profile(float accel, float decel, float v_target,
 static float compute_trapezoidal_velocity(const VelocityMode_t *vm, float t) {
     if (vm->phase == 0) {
         // 加速段：v = a * t
-        return vm->acceleration * t;
+        float t_accel = clamp_time(t, vm->accel_time);
+        return vm->acceleration * t_accel;
     } else if (vm->phase == 1) {
         // 匀速段：v = target_velocity
         return vm->target_velocity;
     } else if (vm->phase == 2) {
         // 减速段：统一使用 decel_start_velocity
         // v = decel_start_velocity - d * t
-        float v = vm->decel_start_velocity - vm->deceleration * t;
+        float t_decel = clamp_time(t, vm->decel_time);
+        float v = vm->decel_start_velocity - vm->deceleration * t_decel;
         return clamp(v, 0.0f, vm->decel_start_velocity);
     }
 
@@ -88,7 +122,7 @@ static float compute_trapezoidal_velocity(const VelocityMode_t *vm, float t) {
 static float compute_scurve_velocity(const VelocityMode_t *vm, float t) {
     if (vm->phase == 0) {
         // 加速段：五次多项式平滑
-        float t_norm = t / vm->accel_time;
+        float t_norm = normalized_time(t, vm->accel_time);
         float t3 = t_norm * t_norm * t_norm;
         float t4 = t3 * t_norm;
         float t5 = t4 * t_norm;
@@ -99,7 +133,7 @@ static float compute_scurve_velocity(const VelocityMode_t *vm, float t) {
         return vm->target_velocity;
     } else if (vm->phase == 2) {
         // 减速段：统一使用 decel_start_velocity
-        float t_norm = t / vm->decel_time;
+        float t_norm = normalized_time(t, vm->decel_time);
         float t3 = t_norm * t_norm * t_norm;
         float t4 = t3 * t_norm;
         float t5 = t4 * t_norm;
@@ -216,31 +250,31 @@ float VelocityMode_Run(VelocityMode_t *vm, float dt, bool stop_request) {
     // 自动状态转换
     if (vm->is_triangular) {
         // 三角型：加速→减速→停止
-        if (vm->phase == 0 && vm->elapsed_time >= vm->accel_time) {
+        if (vm->phase == 0 && reached_phase_end(vm->elapsed_time, vm->accel_time)) {
             // 进入减速阶段：设置减速起始速度
             vm->decel_start_velocity = vm->peak_velocity;
             vm->phase = 2;  // 跳过匀速，直接减速
             vm->elapsed_time = 0.0f;
-        } else if (vm->phase == 2 && vm->elapsed_time >= vm->decel_time) {
+        } else if (vm->phase == 2 && reached_phase_end(vm->elapsed_time, vm->decel_time)) {
             vm->phase = 3;  // 停止
             vm->current_velocity = 0.0f;
         }
     } else {
         // 梯形：加速→匀速→减速→停止
-        if (vm->phase == 0 && vm->elapsed_time >= vm->accel_time) {
+        if (vm->phase == 0 && reached_phase_end(vm->elapsed_time, vm->accel_time)) {
             // 进入匀速阶段：设置减速起始速度（预设）
             vm->decel_start_velocity = vm->target_velocity;
             vm->phase = 1;  // 匀速
             vm->elapsed_time = 0.0f;
         } else if (vm->phase == 1) {
             // 定时模式：检查匀速时间
-            if (vm->run_time > 0.0f && vm->elapsed_time >= vm->cruise_time) {
+            if (vm->run_time > 0.0f && reached_phase_end(vm->elapsed_time, vm->cruise_time)) {
                 // 进入减速阶段：减速起始速度已在匀速阶段设置
                 vm->phase = 2;  // 减速
                 vm->elapsed_time = 0.0f;
             }
             // 持续模式：等待停止信号（已在上面处理）
-        } else if (vm->phase == 2 && vm->elapsed_time >= vm->decel_time) {
+        } else if (vm->phase == 2 && reached_phase_end(vm->elapsed_time, vm->decel_time)) {
             vm->phase = 3;  // 停止
             vm->current_velocity = 0.0f;
         }
