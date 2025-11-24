@@ -2,7 +2,7 @@
 
 基于 STM32G474RE 的永磁同步电机（PMSM）磁场定向控制（FOC）系统，采用 ThreadX RTOS 实现实时控制。
 
-## 📋 项目概述
+## 项目概述
 
 本项目是一个完整的电机控制解决方案，实现了从底层硬件驱动到高层控制算法的全栈开发，支持多电机管理、实时数据监控和串口命令交互。
 
@@ -19,7 +19,7 @@
 - **数据可视化**：集成 VOFA+ 串口调试助手，实时波形显示
 - **单元测试**：基于 CppUTest 的完整测试框架，支持代码覆盖率分析
 
-## 🛠️ 技术栈
+## 技术栈
 
 ### 硬件平台
 - **MCU**：STM32G474RE（ARM Cortex-M4，170MHz）
@@ -40,7 +40,7 @@
 - **版本控制**：Git
 - **串口调试**：VOFA+
 
-## 📁 项目结构
+## 项目结构
 
 ```
 stm32g4-motor-project/
@@ -92,7 +92,7 @@ stm32g4-motor-project/
 └── README.md                 # 本文件
 ```
 
-## 🚀 快速开始
+## 快速开始
 
 ### 环境准备
 
@@ -151,7 +151,7 @@ cd test_cpputest
 .\run_coverage.ps1
 ```
 
-## 📖 使用指南
+## 使用指南
 
 ### 1. 硬件连接
 
@@ -208,7 +208,7 @@ void TIM1_UP_IRQHandler(void) {
 
 详细的 FOC 控制循环示例请参考 [MotorControl/README.md](MotorControl/README.md)。
 
-## 🧪 测试覆盖
+## 测试覆盖
 
 项目包含完整的单元测试，覆盖核心算法模块：
 
@@ -225,13 +225,13 @@ cd test_cpputest
 # 打开 coverage_report/html/index.html
 ```
 
-## 📚 文档
+## 文档
 
 - **[MotorControl 模块文档](MotorControl/README.md)**：详细的模块设计和 API 说明
 - **[设计笔记](MotorControl/部分设计笔记.md)**：开发过程中的技术笔记
 - **[测试文档](test_cpputest/README.md)**：单元测试说明
 
-## 🔧 开发指南
+## 开发指南
 
 ### 代码风格
 
@@ -258,7 +258,7 @@ cd test_cpputest
 - **日志输出**：通过串口输出调试信息
 - **单元测试**：先在 PC 上验证算法正确性
 
-## 🎯 路线图
+## 路线图
 
 - [x] FOC 基础算法实现
 - [x] 标幺化系统
@@ -270,15 +270,15 @@ cd test_cpputest
 - [x] 闭环电流控制
 - [ ] 速度环控制
 - [ ] 位置环控制
+- [ ] 位置和速度轨迹规划T/S型
 - [ ] 编码器接口
 - [ ] 无感 FOC (磁链观测器)
 - [ ] 弱磁控制
-- [ ] 参数自整定
 
-## 📄 许可证
+
+## 许可证
 
 本项目采用 [MIT License](LICENSE)。
-
 
 ---
 
