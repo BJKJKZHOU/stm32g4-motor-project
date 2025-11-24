@@ -64,7 +64,7 @@ if(EXISTS "${CppUTest_INCLUDE_DIRS}/CppUTest/TestHarness.h" AND EXISTS "${CppUTe
     # 添加测试源文件
     target_sources(FOC_math_Tests_CPPUTest PRIVATE
         test_MotorControl/test_FOC_math_cpputest.cpp
-        # test_MotorControl/test_Positioning_cpputest.cpp  # 临时注释：PLL 函数未实现
+        test_MotorControl/test_Positioning_cpputest.cpp
         test_MotorControl/test_motor_simulator.cpp
         test_MotorControl/test_foc_integration.cpp
         test_MotorControl/test_current_loop.cpp
@@ -73,7 +73,6 @@ if(EXISTS "${CppUTest_INCLUDE_DIRS}/CppUTest/TestHarness.h" AND EXISTS "${CppUTe
         test_stubs/motor_simulator.c
         test_stubs/current_stub.c
         test_stubs/pid_controller_stub.c
-        test_stubs/positioning_stub.c
     )
 
     # 添加被测试的源文件
@@ -81,8 +80,8 @@ if(EXISTS "${CppUTest_INCLUDE_DIRS}/CppUTest/TestHarness.h" AND EXISTS "${CppUTe
         ../MotorControl/Src/FOC_math.c
         ../MotorControl/Src/FOC_Loop.c
         ../MotorControl/Src/normalization.c
+        ../MotorControl/Src/Positioning.c
         ../Drivers/CMSIS/DSP/Source/SupportFunctions/arm_q31_to_float.c
-        # ../MotorControl/Src/Positioning.c  # 使用 positioning_stub.c 代替（包含PLL实现）
     )
     
     # 添加包含目录

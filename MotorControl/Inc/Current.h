@@ -52,7 +52,7 @@ extern "C" {
 /* 电流采样相关宏定义 --------------------------------------------------------*/
 #define CURRENT_SAMPLE_CHANNELS     3       // 三相电流采样通道数
 #define ADC_RESOLUTION_12BIT        4096    // 12位ADC分辨率
-#define ADC_VREF                    3.3f    // TODO ADC参考电压 (V)
+#define ADC_VREF                    3.3f    // TODO ADC参考电压 (V)，STM32默认的参数
 
 /* 硬件参数（根据实际硬件调整）*/
 #define CURRENT_SENSE_RESISTOR      0.001f   // TODO 采样电阻 (Ω) 丝印 R001​ 1mΩ

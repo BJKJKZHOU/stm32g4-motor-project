@@ -12,12 +12,18 @@
 #include "Positioning.h"
 #include "motor_params.h"
 #include "normalization.h"
-#include "FOC_math.h"    
-#include "Current.h"    
-#include "tim.h"        
-#include "main.h"       
+#include "FOC_math.h"
+#include "Current.h"
 
-#include <math.h>      
+// 条件编译：单元测试环境使用stub头文件，嵌入式环境使用真实HAL
+#ifdef UNIT_TESTING
+    #include "stm32_hal_stubs.h"  // 测试环境：使用stub
+#else
+    #include "tim.h"              // 嵌入式环境：使用真实HAL
+    #include "main.h"
+#endif
+
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -57,6 +63,11 @@ static void IPD_DWT_Init(void)
  */
 static void IPD_DelayUs(uint32_t us)
 {
+#ifdef UNIT_TESTING
+    // 测试环境：不执行实际延时
+    (void)us;
+#else
+    // 嵌入式环境：使用DWT硬件计数器
     // 确保 DWT 计数器已初始化
     static uint8_t dwt_initialized = 0;
     if (!dwt_initialized) {
@@ -73,9 +84,10 @@ static void IPD_DelayUs(uint32_t us)
 
     // 等待指定的时钟周期数（考虑计数器溢出）
     while ((DWT->CYCCNT - start) < cycles) {
-        // 空循环，等待计数器增 
+        // 空循环，等待计数器增加
         // 注意：DWT->CYCCNT 是 32 位无符号数，减法会自动处理溢出
     }
+#endif
 }
 
 // ============================================================================

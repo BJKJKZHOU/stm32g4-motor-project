@@ -6,6 +6,7 @@
 *=============================================================================*/
 
 #include "Positioning.h"
+#include "motor_params.h"
 #include <string.h>
 #include <math.h>
 

@@ -85,3 +85,17 @@ HAL_StatusTypeDef HAL_CORDIC_Calculate(CORDIC_HandleTypeDef *hcordic, int32_t *p
     
     return HAL_OK;
 }
+
+// DWT和CoreDebug全局实例
+static DWT_Type_Stub DWT_stub = {0};
+static CoreDebug_Type_Stub CoreDebug_stub = {0};
+
+// 定义DWT和CoreDebug指针
+DWT_Type_Stub *DWT = &DWT_stub;
+CoreDebug_Type_Stub *CoreDebug = &CoreDebug_stub;
+
+// SystemCoreClock定义（用于DWT延时计算）
+uint32_t SystemCoreClock = 170000000;  // 170MHz
+
+// TIM句柄实例（用于IPD测试）
+TIM_HandleTypeDef htim1;

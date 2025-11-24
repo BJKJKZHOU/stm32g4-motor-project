@@ -317,3 +317,174 @@ bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
     return true;
 }
 
+/* ======================================================
+ * 速度环控制函数实现
+ * ======================================================
+ */
+
+/**
+ * @brief 速度环初始化
+ */
+void SpeedLoop_Init(SpeedLoop_t *loop, uint8_t motor_id, float dt,
+                   float kp, float ki,
+                   float pll_kp, float pll_ki,
+                   float initial_theta_rad)
+{
+    // 参数检查
+    if (loop == NULL) {
+        return;
+    }
+
+    // 清零结构体
+    memset(loop, 0, sizeof(SpeedLoop_t));
+
+    // 设置基本参数
+    loop->motor_id = motor_id;
+    loop->dt = dt;
+
+    // 初始化速度环PID控制器
+    loop->pid_params.kp = kp;
+    loop->pid_params.ki = ki;
+    loop->pid_params.kd = 0.0f;  // 速度环不使用微分项
+    loop->pid_params.Kfr_speed = 0.0f;  // 速度环不使用前馈（标准PI模式）
+    loop->pid_params.integral_limit = 1.0f;  // 积分限幅（标幺值）
+    loop->pid_params.output_limit = 1.0f;    // 输出限幅（标幺值）
+
+    loop->pid_state.integral = 0.0f;
+    loop->pid_state.prev_error = 0.0f;
+
+    // 初始化PLL速度观测器
+    PLL_SpeedObserver_Init(&loop->speed_observer, motor_id, pll_kp, pll_ki, initial_theta_rad);
+
+    // 获取电机参数并计算速度限制
+    extern Motor_LimitParams_t motor_limit_params[];
+    extern Motor_Params_t motor_params[];
+
+    float speed_limit_rpm = motor_limit_params[motor_id].speed_limit_actual;
+    float pole_pairs = motor_params[motor_id].Pn;
+
+    // 转换为电角速度（rad/s）
+    // omega_elec = RPM * (2π/60) * Pn
+    loop->omega_limit = speed_limit_rpm * (2.0f * PI / 60.0f) * pole_pairs;
+
+    // 转换为标幺值
+    loop->omega_limit_pu = Normalization_ToPerUnit(motor_id,
+                                                   NORMALIZE_SPEED_ELECTRICAL,
+                                                   loop->omega_limit);
+
+    // 获取电流限制（标幺值）
+    float i_limit_actual = motor_limit_params[motor_id].I_limit_actual;
+    loop->iq_limit_pu = Normalization_ToPerUnit(motor_id,
+                                                NORMALIZE_CURRENT,
+                                                i_limit_actual);
+
+    // 设置标志
+    loop->is_initialized = true;
+    loop->is_running = false;
+}
+
+/**
+ * @brief 速度环主控制函数
+ */
+bool SpeedLoop_Run(SpeedLoop_t *loop, float omega_ref,
+                  float theta_measured_rad,
+                  float *id_ref, float *iq_ref)
+{
+    // 参数检查
+    if (loop == NULL || !loop->is_initialized) {
+        return false;
+    }
+    if (id_ref == NULL || iq_ref == NULL) {
+        return false;
+    }
+
+    // ========================================================================
+    // 步骤1：PLL观测器更新，提取速度反馈（电角速度，rad/s）
+    // ========================================================================
+    PLL_SpeedObserver_Update(&loop->speed_observer, theta_measured_rad, loop->dt);
+
+    // 获取电角速度反馈（rad/s）
+    loop->omega_feedback = loop->speed_observer.omega_hat_rad_s;
+
+    // ========================================================================
+    // 步骤2：速度限幅保护（电角速度）
+    // ========================================================================
+    float omega_ref_limited = omega_ref;
+    if (omega_ref_limited > loop->omega_limit) {
+        omega_ref_limited = loop->omega_limit;
+    } else if (omega_ref_limited < -loop->omega_limit) {
+        omega_ref_limited = -loop->omega_limit;
+    }
+
+    // 保存设定值
+    loop->omega_setpoint = omega_ref_limited;
+
+    // ========================================================================
+    // 步骤3：转换为标幺值
+    // ========================================================================
+    loop->omega_setpoint_pu = Normalization_ToPerUnit(loop->motor_id,
+                                                      NORMALIZE_SPEED_ELECTRICAL,
+                                                      omega_ref_limited);
+
+    loop->omega_feedback_pu = Normalization_ToPerUnit(loop->motor_id,
+                                                      NORMALIZE_SPEED_ELECTRICAL,
+                                                      loop->omega_feedback);
+
+    // ========================================================================
+    // 步骤4：PI控制器计算q轴电流设定值（标幺值域）
+    // ========================================================================
+    float iq_output_pu = PID_Controller(loop->omega_setpoint_pu,       // 设定值（标幺）
+                                        loop->omega_feedback_pu,        // 反馈值（标幺）
+                                        loop->dt,                       // 控制周期
+                                        &loop->pid_params,              // PID参数
+                                        &loop->pid_state);              // PID状态
+
+    // ========================================================================
+    // 步骤5：电流限幅保护
+    // ========================================================================
+    if (iq_output_pu > loop->iq_limit_pu) {
+        iq_output_pu = loop->iq_limit_pu;
+    } else if (iq_output_pu < -loop->iq_limit_pu) {
+        iq_output_pu = -loop->iq_limit_pu;
+    }
+
+    loop->iq_output = iq_output_pu;
+
+    // ========================================================================
+    // 步骤6：d轴电流设为0（表贴式永磁同步电机）
+    // ========================================================================
+    *id_ref = 0.0f;  // SPMSM: id=0，最大转矩电流比控制
+    *iq_ref = iq_output_pu;
+
+    // 设置运行标志
+    loop->is_running = true;
+
+    return true;
+}
+
+/**
+ * @brief 速度环复位
+ */
+void SpeedLoop_Reset(SpeedLoop_t *loop, float new_theta_rad)
+{
+    if (loop == NULL || !loop->is_initialized) {
+        return;
+    }
+
+    // 复位PID状态
+    loop->pid_state.integral = 0.0f;
+    loop->pid_state.prev_error = 0.0f;
+
+    // 复位PLL观测器
+    PLL_SpeedObserver_Reset(&loop->speed_observer, new_theta_rad);
+
+    // 清零监控变量
+    loop->omega_setpoint = 0.0f;
+    loop->omega_feedback = 0.0f;
+    loop->omega_setpoint_pu = 0.0f;
+    loop->omega_feedback_pu = 0.0f;
+    loop->iq_output = 0.0f;
+
+    loop->is_running = false;
+}
+

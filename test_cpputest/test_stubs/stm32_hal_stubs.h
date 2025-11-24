@@ -19,6 +19,9 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
+// 包含STM32 HAL stub头文件（提供基本类型定义）
+#include "stm32g4xx_hal.h"
+
 // 防止 ARM DSP 头文件冲突
 #ifndef ARM_MATH_CM4
 #define ARM_MATH_CM4
@@ -115,6 +118,35 @@ uint32_t HAL_GetTick(void);
 #ifndef ARR_PERIOD
 #define ARR_PERIOD 4250  // 测试用的默认值
 #endif
+
+// DWT（Data Watchpoint and Trace）相关定义
+#define DWT_CTRL_CYCCNTENA_Msk (1UL << 0)
+#define CoreDebug_DEMCR_TRCENA_Msk (1UL << 24)
+
+typedef struct {
+    uint32_t CTRL;
+    uint32_t CYCCNT;
+} DWT_Type_Stub;
+
+typedef struct {
+    uint32_t DEMCR;
+} CoreDebug_Type_Stub;
+
+extern DWT_Type_Stub *DWT;
+extern CoreDebug_Type_Stub *CoreDebug;
+
+// TIM（定时器）相关定义
+// 注意：TIM_HandleTypeDef已在stm32g4xx_hal.h中定义
+extern TIM_HandleTypeDef htim1;
+
+// TIM通道定义
+#define TIM_CHANNEL_1 0x00000000U
+#define TIM_CHANNEL_2 0x00000004U
+#define TIM_CHANNEL_3 0x00000008U
+
+// TIM HAL宏定义（测试环境中为空操作）
+#define __HAL_TIM_SET_COMPARE(htim, Channel, Compare) \
+    do { (void)(htim); (void)(Channel); (void)(Compare); } while(0)
 
 #ifdef __cplusplus
 }
