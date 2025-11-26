@@ -28,8 +28,8 @@ extern volatile float g_debug_sin;    // sin(θ)
 extern volatile float g_debug_cos;    // cos(θ)
 extern volatile float g_debug_frequency;  // 当前电频率 (rad/s)
 
-extern volatile uint32_t g_tim1_interrupt_count;     // TIM1中断计数
-extern volatile float g_tim1_interrupt_freq_hz;      // TIM1中断频率 (Hz)
+extern volatile uint32_t g_tim1_interrupt_count;     // TODO 变量未使用 TIM1中断计数
+extern volatile float g_tim1_interrupt_freq_hz;      // TODO 变量未使用 TIM1中断频率 (Hz)
 
 
 /* ======================================================
@@ -49,7 +49,7 @@ void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uin
 
 
 /* ======================================================
-    TODO 电流环
+    TODO  电流环
 
     初始化
     各种模块的初始化
@@ -111,18 +111,6 @@ typedef struct {
 } CurrentLoop_t;
 
 
-
-/**
- * @brief 电流环初始化
- * @param loop 电流环控制器结构体指针
- * @param motor_id 电机ID
- * @param dt 控制周期 (s)
- * @param kp_d d轴电流环比例系数
- * @param ki_d d轴电流环积分系数
- * @param kp_q q轴电流环比例系数
- * @param ki_q q轴电流环积分系数
- * @param observer_gamma 观测器增益参数
- */
 void CurrentLoop_Init(CurrentLoop_t *loop, uint8_t motor_id, float dt,
                      float kp_d, float ki_d, float kp_q, float ki_q,
                      float observer_gamma);
@@ -136,24 +124,10 @@ void CurrentLoop_Init(CurrentLoop_t *loop, uint8_t motor_id, float dt,
  * @param Tcm2 输出：三相PWM占空比计数值 (0-ARR_PERIOD)
  * @param Tcm3 输出：三相PWM占空比计数值 (0-ARR_PERIOD)
  * @return true=成功, false=失败
- *
- * @note 此函数执行完整的电流环控制流程：
- *       1. ADC采集三相电流
- *       2. Clarke变换：abc → αβ
- *       3. 计算逆变器输出电压（αβ坐标系）
- *       4. 非线性观测器估计电角度
- *       5. Park变换：αβ → dq（电流反馈）
- *       6. PID控制器计算dq轴电压（含解耦补偿）
- *       7. 逆Park变换：dq → αβ（电压输出）
- *       8. SVPWM生成PWM占空比
  */
 bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
                     uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
 
-/**
- * @brief 电流环复位
- * @param loop 电流环控制器结构体指针
- */
 void CurrentLoop_Reset(CurrentLoop_t *loop);
 
 
@@ -189,8 +163,8 @@ typedef struct {
     float omega_feedback_pu;        // 速度反馈值 (标幺值)
     float iq_output;                // q轴电流输出 (标幺值)
 
-    // 速度限制（电角速度）
-    float omega_limit;              // 速度限制 (电角速度，rad/s)
+    // TODO 代办(是否需要结合 Motor_LimitParams_t) 速度限制（电角速度），限值存在 MotorControl\Inc\motor_params.h 中
+    float omega_limit;              // 速度限制 (电角速度，rad/s)  
     float omega_limit_pu;           // 速度限制 (标幺值)
     float iq_limit_pu;              // q轴电流限制 (标幺值)
 

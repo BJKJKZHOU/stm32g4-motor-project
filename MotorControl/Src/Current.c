@@ -196,10 +196,9 @@ void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t dut
         // 选项C：跳过本次采样（设置触发点为0，禁用触发）
 
         // 这里选择选项B：强制低侧采样
-        trigger_point = DUTY_THRESHOLD_LOW / 2;  // 约212
+        trigger_point = DUTY_THRESHOLD_LOW / 2;  
         g_trigger_strategy = 2;
 
-        // 可选：如果需要跳过采样，取消下面的注释
         // trigger_point = 0;  // 禁用触发
     }
 
@@ -211,7 +210,7 @@ void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t dut
     // 4. 更新TIM1_CH4比较值（ADC触发点）
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_4, trigger_point);
 
-    // 5. 保存到调试变量
+    // 保存到调试变量
     g_adc_trigger_point = trigger_point;
 }
 

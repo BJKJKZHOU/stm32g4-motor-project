@@ -52,11 +52,11 @@ extern "C" {
 /* 电流采样相关宏定义 --------------------------------------------------------*/
 #define CURRENT_SAMPLE_CHANNELS     3       // 三相电流采样通道数
 #define ADC_RESOLUTION_12BIT        4096    // 12位ADC分辨率
-#define ADC_VREF                    3.3f    // TODO ADC参考电压 (V)，STM32默认的参数
+#define ADC_VREF                    3.3f    // TODO 已确认 ADC参考电压 (V)，STM32默认的参数
 
 /* 硬件参数（根据实际硬件调整）*/
-#define CURRENT_SENSE_RESISTOR      0.001f   // TODO 采样电阻 (Ω) 丝印 R001​ 1mΩ
-#define CURRENT_OPAMP_GAIN          100.0f   // TODO 运放增益 芯片 INA4181A3IPWR 
+#define CURRENT_SENSE_RESISTOR      0.001f   // TODO 已确认 采样电阻 (Ω) 丝印 R001​ 1mΩ
+#define CURRENT_OPAMP_GAIN          100.0f   // TODO 已确认 运放增益 芯片 INA4181A3IPWR 
 #define CURRENT_OFFSET_ADC          2048    // 电流零点对应的ADC值（12位中点）
 
 /* 电流采样数据结构 ----------------------------------------------------------*/
@@ -97,6 +97,7 @@ extern volatile uint32_t g_min_duty;                 // 最小占空比
 extern volatile uint32_t g_max_duty;                 // 最大占空比
 extern volatile uint8_t g_trigger_strategy;          // 触发策略：0=高侧，1=低侧，2=降级
 
+// TODO 需要重点关注，触发点和占空比。
 void Update_ADC_Trigger_Point(uint32_t duty_ch1, uint32_t duty_ch2, uint32_t duty_ch3);
 
 #ifdef __cplusplus

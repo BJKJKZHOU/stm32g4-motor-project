@@ -104,10 +104,8 @@ void MX_ADC1_Init(void)
   sConfigInjected.ExternalTrigInjecConv = ADC_EXTERNALTRIGINJEC_T1_CC4;
   sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONV_EDGE_RISING;
   sConfigInjected.InjecOversamplingMode = ENABLE;
-  // 16倍过采样：提升2位分辨率（12位→14位有效），右移4位保持12位输出
-  // 采样时间约2.44μs，在50μs下管导通时间内完成
-  sConfigInjected.InjecOversampling.Ratio = ADC_OVERSAMPLING_RATIO_16;
-  sConfigInjected.InjecOversampling.RightBitShift = ADC_RIGHTBITSHIFT_4;
+  sConfigInjected.InjecOversampling.Ratio = ADC_OVERSAMPLING_RATIO_8;
+  sConfigInjected.InjecOversampling.RightBitShift = ADC_RIGHTBITSHIFT_3;
   if (HAL_ADCEx_InjectedConfigChannel(&hadc1, &sConfigInjected) != HAL_OK)
   {
     Error_Handler();

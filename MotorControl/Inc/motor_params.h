@@ -52,6 +52,7 @@ typedef struct {
 } Motor_Params_t;
 
 //限值参数结构体，取对应限制最小的作为最终限制
+//TODO 待办 需要添加位置限位(由Location_Plan.h文件衍生此代办)，默认不启用，可以将限位使用命令打印出去，需要在命令系统添加打印限位的部分
 typedef struct {
     float I_limit_user;         // 用户最大电流限值
     float I_limit_max;          // 硬件最大电流限值
