@@ -24,6 +24,7 @@ extern "C" {
 #endif
 
 #define PARAM_COUNT 11
+#define LIMIT_PARAM_COUNT 6  // 限值参数数量
 
 #define FLUX_CONSTANT (60.0f / (1.7320508075688772f * 2.0f * PI * 1000.0f)) //Flux=Ke/((SQRT(3)*2.0f*PI*1000.0*Pn)/60.0)
 
@@ -52,7 +53,6 @@ typedef struct {
 } Motor_Params_t;
 
 //限值参数结构体，取对应限制最小的作为最终限制
-//TODO 待办 需要添加位置限位(由Location_Plan.h文件衍生此代办)，默认不启用，可以将限位使用命令打印出去，需要在命令系统添加打印限位的部分
 typedef struct {
     float I_limit_user;         // 用户最大电流限值
     float I_limit_max;          // 硬件最大电流限值
@@ -61,6 +61,10 @@ typedef struct {
     float I_limit_actual;       // 实际电流限值
     float speed_limit_actual;   // 实际转数限值
 
+    // 位置限位参数（默认不启用）
+    bool position_limit_enable;     // 位置限位使能标志
+    float position_limit_min;       // 最小位置限值 (rad，机械角度)
+    float position_limit_max;       // 最大位置限值 (rad，机械角度)
 } Motor_LimitParams_t;
 
 // 参数映射结构体 
@@ -95,6 +99,8 @@ void MotorParams_Init(void);
 void MotorParams_SetParam(uint8_t motor_id, const char* param_name, float value); //设置电机参数
 
 void MotorParams_PrintAll(uint8_t motor_id); // 输出指定电机的所有参数和描述
+void MotorParams_PrintLimits(uint8_t motor_id); // 输出指定电机的限值参数
+void MotorParams_SetLimitParam(uint8_t motor_id, const char* param_name, float value); // 设置电机限值参数
 
 // 激活状态管理函数
 bool MotorParams_IsMotorEnabled(uint8_t motor_id);

@@ -23,7 +23,25 @@
     特性：
      - 不区分大小写
      - 支持motor命令简写（m0, m1）
-     - 灵活的set命令格式（支持空格和等号的不同组合） 
+     - 灵活的set命令格式（支持空格和等号的不同组合）
+
+     - limit          // 显示激活电机的限值参数（电流、速度、位置限位）
+     - limit 0        // 显示电机0的限值参数
+     - limit motor1   // 显示电机1的限值参数
+
+     限值参数设置（支持 HMI 编号和参数名）：
+     - set motor0 P2001 = 10.0                   // 使用 HMI 编号设置用户电流限值
+     - set motor0 P2002 = 3000                   // 使用 HMI 编号设置用户速度限值
+     - set motor0 P2003 = 1                      // 使用 HMI 编号启用位置限位（1=启用，0=禁用）
+     - set motor0 P2004 = 0.5                    // 使用 HMI 编号设置最小位置限值（单位：rad）
+     - set motor0 P2005 = 3.14                   // 使用 HMI 编号设置最大位置限值（单位：rad）
+
+     或使用参数名：
+     - set motor0 I_limit_user = 10.0            // 设置用户电流限值
+     - set motor0 speed_limit_user = 3000        // 设置用户速度限值
+     - set motor0 position_limit_enable = true   // 启用位置限位（支持 true/false）
+     - set motor0 position_limit_min = 0.5       // 设置最小位置限值（单位：rad）
+     - set motor0 position_limit_max = 3.14      // 设置最大位置限值（单位：rad）
 
      - TODO 1、待添加，电机启动命令，m0 run
      - TODO 2、待添加，相关参数打印系统，不与电机参数系统一起打印，是单独的命令，打印激活电机的

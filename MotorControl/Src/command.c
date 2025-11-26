@@ -11,6 +11,7 @@
 
 #include "motor_params.h"
 #include "normalization.h"
+#include "usart.h"
 
 #include <stdint.h>
 #include <ctype.h>
@@ -43,6 +44,7 @@ static motor_id_parse_result_t parse_motor_id_token(const char* token, uint8_t* 
 static void handle_plot_command(char* args);
 static void handle_motor_command(char* args);
 static void handle_set_command(char* args);
+static void handle_limit_command(char* args);
 
 void Command_Init(void)
 {
@@ -98,6 +100,8 @@ void Command_Parse(const char* command_line)
         handle_motor_command(args);
     } else if (string_equals_ignore_case(cursor, "set")) {
         handle_set_command(args);
+    } else if (string_equals_ignore_case(cursor, "limit")) {
+        handle_limit_command(args);
     } else if (starts_with_ignore_case(cursor, "motor")) {
         char* combined_args = args;
         if (combined_args == NULL) {
@@ -472,6 +476,59 @@ static void handle_set_command(char* args)
         return;
     }
 
+    // 检查是否为限值参数（支持 HMI 编号和参数名）
+    // 限值参数包括：I_limit_user, speed_limit_user, position_limit_enable, position_limit_min, position_limit_max
+    // 对应 HMI 编号：P2001, P2002, P2003, P2004, P2005
+    if (string_equals_ignore_case(param_name, "I_limit_user") ||
+        string_equals_ignore_case(param_name, "speed_limit_user") ||
+        string_equals_ignore_case(param_name, "position_limit_enable") ||
+        string_equals_ignore_case(param_name, "position_limit_min") ||
+        string_equals_ignore_case(param_name, "position_limit_max") ||
+        string_equals_ignore_case(param_name, "I_limit_max") ||
+        (param_name[0] == 'P' && param_name[1] == '2')) {  // P2xxx 格式的 HMI 编号
+
+        // 特殊处理 position_limit_enable，支持 true/false 字符串
+        if (string_equals_ignore_case(param_name, "position_limit_enable") ||
+            string_equals_ignore_case(param_name, "P2003")) {
+            float numeric_value = 0.0f;
+            if (string_equals_ignore_case(value_str, "true") ||
+                string_equals_ignore_case(value_str, "1") ||
+                string_equals_ignore_case(value_str, "enable")) {
+                numeric_value = 1.0f;
+            } else if (string_equals_ignore_case(value_str, "false") ||
+                       string_equals_ignore_case(value_str, "0") ||
+                       string_equals_ignore_case(value_str, "disable")) {
+                numeric_value = 0.0f;
+            } else {
+                set_error("Invalid value '%s' for position_limit_enable (use true/false or 1/0)", value_str);
+                return;
+            }
+            MotorParams_SetLimitParam(motor_index, param_name, numeric_value);
+            return;
+        }
+
+        // 处理其他限值参数（数值类型）
+        char* endptr = NULL;
+        float value = strtof(value_str, &endptr);
+        if (value_str == endptr) {
+            set_error("Invalid value '%s'", value_str);
+            return;
+        }
+
+        while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
+            endptr++;
+        }
+
+        if (*endptr != '\0') {
+            set_error("Invalid value '%s'", value_str);
+            return;
+        }
+
+        MotorParams_SetLimitParam(motor_index, param_name, value);
+        return;
+    }
+
+    // 处理电机参数
     char* endptr = NULL;
     float value = strtof(value_str, &endptr);
     if (value_str == endptr) {
@@ -490,4 +547,37 @@ static void handle_set_command(char* args)
 
     MotorParams_SetParam(motor_index, param_name, value);
     Normalization_UpdateMotor(motor_index);
+}
+
+static void handle_limit_command(char* args)
+{
+    char* trimmed = skip_leading_whitespace(args);
+    if (trimmed == NULL || *trimmed == '\0') {
+        // 如果没有指定电机ID，打印激活电机的限值
+        if (MotorParams_IsAnyMotorActive()) {
+            uint8_t active_motor = MotorParams_GetActiveMotor();
+            MotorParams_PrintLimits(active_motor);
+        } else {
+            set_error("Usage: limit <motor_id> (no active motor)");
+            print_available_motors();
+        }
+        return;
+    }
+
+    rtrim_in_place(trimmed);
+
+    uint8_t motor_id = 0U;
+    long raw_value = -1;
+    motor_id_parse_result_t result = parse_motor_id_token(trimmed, &motor_id, &raw_value);
+    if (result == MOTOR_ID_PARSE_OK) {
+        MotorParams_PrintLimits(motor_id);
+        return;
+    }
+
+    if (result == MOTOR_ID_PARSE_OUT_OF_RANGE) {
+        set_error("Motor %ld not found", raw_value);
+    } else {
+        set_error("Invalid motor ID '%s'", trimmed);
+    }
+    print_available_motors();
 }

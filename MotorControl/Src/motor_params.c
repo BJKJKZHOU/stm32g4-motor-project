@@ -46,6 +46,11 @@ void MotorParams_Init(void)
     motor_limit_params[MOTOR_0].speed_limit_max = motor_params[MOTOR_0].RPM_rated;//默认电机额定转数
     motor_limit_params[MOTOR_0].I_limit_actual =  fmin(motor_limit_params[MOTOR_0].I_limit_user, motor_limit_params[MOTOR_0].I_limit_max);//最终实际最大电流
     motor_limit_params[MOTOR_0].speed_limit_actual = fmin(motor_limit_params[MOTOR_0].speed_limit_user, motor_limit_params[MOTOR_0].speed_limit_max);//最终实际最大转速
+
+    // 初始化0号电机位置限位参数（默认不启用）
+    motor_limit_params[MOTOR_0].position_limit_enable = false;//默认不启用位置限位
+    motor_limit_params[MOTOR_0].position_limit_min = 0.0f;//最小位置限值 (rad)
+    motor_limit_params[MOTOR_0].position_limit_max = 0.0f;//最大位置限值 (rad)
     
     // 初始化1号电机参数
     motor_params[MOTOR_1].V_DC = 0.0f;        // 直流母线电压
@@ -67,14 +72,19 @@ void MotorParams_Init(void)
     motor_limit_params[MOTOR_1].speed_limit_max = motor_params[MOTOR_1].RPM_rated;//默认电机额定转数
     motor_limit_params[MOTOR_1].I_limit_actual =  fmin(motor_limit_params[MOTOR_1].I_limit_user, motor_limit_params[MOTOR_1].I_limit_max);//最终实际最大电流
     motor_limit_params[MOTOR_1].speed_limit_actual = fmin(motor_limit_params[MOTOR_1].speed_limit_user, motor_limit_params[MOTOR_1].speed_limit_max);//最终实际最大转速
+
+    // 初始化1号电机位置限位参数（默认不启用）
+    motor_limit_params[MOTOR_1].position_limit_enable = false;//默认不启用位置限位
+    motor_limit_params[MOTOR_1].position_limit_min = 0.0f;//最小位置限值 (rad)
+    motor_limit_params[MOTOR_1].position_limit_max = 0.0f;//最大位置限值 (rad)
     
 }
 
 // 参数描述数组
-const ParamDesc_t param_descs[PARAM_COUNT] = { 
+const ParamDesc_t param_descs[PARAM_COUNT] = {
     // hmi_code, name, unit, desc
     {"P1001", "V_DC", "V", "直流母线电压"},          // 索引0
-    {"P1002", "I_rated", "A", "额定电流"},           // 索引1  
+    {"P1002", "I_rated", "A", "额定电流"},           // 索引1
     {"P1003", "Rs", "ohm", "定子绕组相电阻"},         // 索引2
     {"P1004", "Lq", "mH", "q轴电感"},                // 索引3
     {"P1005", "Ld", "mH", "d轴电感"},                // 索引4
@@ -84,6 +94,17 @@ const ParamDesc_t param_descs[PARAM_COUNT] = {
     {"P1009", "Flux", "Wb", "转子磁链"},              // 索引8
     {"P1010", "J", "kg·m²*10^-3", "转动惯量"},       // 索引9
     {"P1011", "B", "N·m·s/rad", "摩擦系数"}          // 索引10
+};
+
+// 限值参数描述数组
+const ParamDesc_t limit_param_descs[LIMIT_PARAM_COUNT] = {
+    // hmi_code, name, unit, desc
+    {"P2001", "I_limit_user", "A", "用户最大电流限值"},           // 索引0
+    {"P2002", "speed_limit_user", "rpm", "用户最大转速限值"},     // 索引1
+    {"P2003", "position_limit_enable", "-", "位置限位使能"},      // 索引2
+    {"P2004", "position_limit_min", "rad", "最小位置限值"},       // 索引3
+    {"P2005", "position_limit_max", "rad", "最大位置限值"},       // 索引4
+    {"P2006", "I_limit_max", "A", "硬件最大电流限值（只读）"}     // 索引5
 };
 
 const ParamMap_t param_maps[motors_number][PARAM_COUNT] = {
@@ -115,6 +136,29 @@ const ParamMap_t param_maps[motors_number][PARAM_COUNT] = {
         {&motor_params[MOTOR_1].Flux, 8},      // P1009 - 转子磁链 - 索引8
         {&motor_params[MOTOR_1].J, 9},         // P1010 - 转动惯量 - 索引9
         {&motor_params[MOTOR_1].B, 10}         // P1011 - 摩擦系数 - 索引10
+    }
+};
+
+// 限值参数映射数组（注意：position_limit_enable 是 bool 类型，需要特殊处理）
+const ParamMap_t limit_param_maps[motors_number][LIMIT_PARAM_COUNT] = {
+    // 电机0的限值参数映射
+    {
+        {&motor_limit_params[MOTOR_0].I_limit_user, 0},        // P2001 - 用户最大电流限值 - 索引0
+        {&motor_limit_params[MOTOR_0].speed_limit_user, 1},    // P2002 - 用户最大转速限值 - 索引1
+        {NULL, 2},                                              // P2003 - 位置限位使能（bool类型，特殊处理）- 索引2
+        {&motor_limit_params[MOTOR_0].position_limit_min, 3},  // P2004 - 最小位置限值 - 索引3
+        {&motor_limit_params[MOTOR_0].position_limit_max, 4},  // P2005 - 最大位置限值 - 索引4
+        {&motor_limit_params[MOTOR_0].I_limit_max, 5}          // P2006 - 硬件最大电流限值（只读）- 索引5
+    },
+
+    // 电机1的限值参数映射
+    {
+        {&motor_limit_params[MOTOR_1].I_limit_user, 0},        // P2001 - 用户最大电流限值 - 索引0
+        {&motor_limit_params[MOTOR_1].speed_limit_user, 1},    // P2002 - 用户最大转速限值 - 索引1
+        {NULL, 2},                                              // P2003 - 位置限位使能（bool类型，特殊处理）- 索引2
+        {&motor_limit_params[MOTOR_1].position_limit_min, 3},  // P2004 - 最小位置限值 - 索引3
+        {&motor_limit_params[MOTOR_1].position_limit_max, 4},  // P2005 - 最大位置限值 - 索引4
+        {&motor_limit_params[MOTOR_1].I_limit_max, 5}          // P2006 - 硬件最大电流限值（只读）- 索引5
     }
 };
 
@@ -255,4 +299,205 @@ uint8_t MotorParams_GetActiveMotor(void)
 bool MotorParams_IsAnyMotorActive(void)
 {
     return (g_active_motor_id < motors_number);
+}
+
+void MotorParams_PrintLimits(uint8_t motor_id)
+{
+    if (motor_id >= motors_number) {
+        printf("错误：电机ID %d 无效\n", motor_id);
+        return;
+    }
+
+    Motor_LimitParams_t *limit = &motor_limit_params[motor_id];
+
+    printf("======== 电机 %d 限值参数 ========\n", motor_id);
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "HMI代码", "参数名", "用户限值", "硬件限值", "实际限值", "单位");
+    printf("--------------------------------------------------------------------------------\n");
+
+    // 电流限值
+    char i_user_str[16], i_max_str[16], i_actual_str[16];
+    format_float_value(i_user_str, sizeof(i_user_str), limit->I_limit_user);
+    format_float_value(i_max_str, sizeof(i_max_str), limit->I_limit_max);
+    format_float_value(i_actual_str, sizeof(i_actual_str), limit->I_limit_actual);
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "P2001", "I_limit_user", i_user_str, "-", "-", "A");
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "P2006", "I_limit_max (只读)", "-", i_max_str, "-", "A");
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "-", "I_limit_actual", "-", "-", i_actual_str, "A");
+
+    // 速度限值
+    char speed_user_str[16], speed_max_str[16], speed_actual_str[16];
+    format_float_value(speed_user_str, sizeof(speed_user_str), limit->speed_limit_user);
+    format_float_value(speed_max_str, sizeof(speed_max_str), limit->speed_limit_max);
+    format_float_value(speed_actual_str, sizeof(speed_actual_str), limit->speed_limit_actual);
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "P2002", "speed_limit_user", speed_user_str, "-", "-", "rpm");
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "-", "speed_limit_max", "-", speed_max_str, "-", "rpm");
+    printf("%-10s %-25s %-15s %-15s %-15s %-10s\n",
+           "-", "speed_limit_actual", "-", "-", speed_actual_str, "rpm");
+
+    printf("--------------------------------------------------------------------------------\n");
+
+    // 位置限位
+    printf("%-10s %-25s %s\n",
+           "P2003", "position_limit_enable",
+           limit->position_limit_enable ? "启用" : "禁用");
+
+    if (limit->position_limit_enable) {
+        char pos_min_str[16], pos_max_str[16];
+        format_float_value(pos_min_str, sizeof(pos_min_str), limit->position_limit_min);
+        format_float_value(pos_max_str, sizeof(pos_max_str), limit->position_limit_max);
+        printf("%-10s %-25s %-15s rad (%.2f°)\n",
+               "P2004", "position_limit_min",
+               pos_min_str, limit->position_limit_min * 180.0f / PI);
+        printf("%-10s %-25s %-15s rad (%.2f°)\n",
+               "P2005", "position_limit_max",
+               pos_max_str, limit->position_limit_max * 180.0f / PI);
+
+        // 计算位置范围
+        float range_rad = limit->position_limit_max - limit->position_limit_min;
+        float range_deg = range_rad * 180.0f / PI;
+        printf("%-10s %-25s %.4f rad (%.2f°)\n",
+               "-", "位置范围", range_rad, range_deg);
+    } else {
+        printf("%-10s %-25s %s\n",
+               "P2004", "position_limit_min", "未设置（限位未启用）");
+        printf("%-10s %-25s %s\n",
+               "P2005", "position_limit_max", "未设置（限位未启用）");
+    }
+
+    printf("====================================================================\n");
+}
+
+// 内部辅助函数：根据HMI代码获取限值参数ID
+static int8_t GetLimitParamIdByHMICode(const char* hmi_code)
+{
+    for (int i = 0; i < LIMIT_PARAM_COUNT; i++) {
+        if (strcmp(limit_param_descs[i].hmi_code, hmi_code) == 0) {
+            return i;
+        }
+    }
+    return -1; // 无效HMI代码
+}
+
+void MotorParams_SetLimitParam(uint8_t motor_id, const char* param_name, float value)
+{
+    if (motor_id >= motors_number) {
+        return;
+    }
+
+    // 首先尝试将param_name作为HMI代码（Pxxxx格式）处理
+    int8_t param_id = GetLimitParamIdByHMICode(param_name);
+    if (param_id >= 0 && param_id < LIMIT_PARAM_COUNT) {
+        // 使用HMI代码查找参数ID成功
+
+        // 特殊处理：P2003 (position_limit_enable) 是 bool 类型
+        if (param_id == 2) {
+            bool enable_value = (value != 0.0f);
+            motor_limit_params[motor_id].position_limit_enable = enable_value;
+            printf("OK new %s = %s\n", limit_param_descs[param_id].name, enable_value ? "true" : "false");
+            return;
+        }
+
+        // 特殊处理：P2006 (I_limit_max) 是只读参数
+        if (param_id == 5) {
+            printf("错误：参数 '%s' 是只读参数，不能修改\n", limit_param_descs[param_id].name);
+            return;
+        }
+
+        // 处理其他 float 类型参数
+        float* param_ptr = limit_param_maps[motor_id][param_id].value_ptr;
+        if (param_ptr) {
+            *param_ptr = value;
+
+            // 更新实际限值
+            motor_limit_params[motor_id].I_limit_actual = fmin(
+                motor_limit_params[motor_id].I_limit_user,
+                motor_limit_params[motor_id].I_limit_max
+            );
+            motor_limit_params[motor_id].speed_limit_actual = fmin(
+                motor_limit_params[motor_id].speed_limit_user,
+                motor_limit_params[motor_id].speed_limit_max
+            );
+
+            // 输出确认信息
+            char value_str[16];
+            format_float_value(value_str, sizeof(value_str), value);
+
+            // 对于位置限值，同时显示度数
+            if (param_id == 3 || param_id == 4) {
+                printf("OK new %s = %s %s (%.2f°)\n",
+                       limit_param_descs[param_id].name,
+                       value_str,
+                       limit_param_descs[param_id].unit,
+                       value * 180.0f / PI);
+            } else {
+                printf("OK new %s = %s %s\n",
+                       limit_param_descs[param_id].name,
+                       value_str,
+                       limit_param_descs[param_id].unit);
+            }
+            return;
+        }
+    }
+
+    // 如果不是HMI代码格式，使用参数名称设置逻辑
+    for (int i = 0; i < LIMIT_PARAM_COUNT; i++) {
+        if (strcmp(limit_param_descs[i].name, param_name) == 0) {
+            // 特殊处理：position_limit_enable 是 bool 类型
+            if (i == 2) {
+                bool enable_value = (value != 0.0f);
+                motor_limit_params[motor_id].position_limit_enable = enable_value;
+                printf("OK new %s = %s\n", param_name, enable_value ? "true" : "false");
+                return;
+            }
+
+            // 特殊处理：I_limit_max 是只读参数
+            if (i == 5) {
+                printf("错误：参数 '%s' 是只读参数，不能修改\n", param_name);
+                return;
+            }
+
+            // 处理其他 float 类型参数
+            float* param_ptr = limit_param_maps[motor_id][i].value_ptr;
+            if (param_ptr) {
+                *param_ptr = value;
+
+                // 更新实际限值
+                motor_limit_params[motor_id].I_limit_actual = fmin(
+                    motor_limit_params[motor_id].I_limit_user,
+                    motor_limit_params[motor_id].I_limit_max
+                );
+                motor_limit_params[motor_id].speed_limit_actual = fmin(
+                    motor_limit_params[motor_id].speed_limit_user,
+                    motor_limit_params[motor_id].speed_limit_max
+                );
+
+                // 输出确认信息
+                char value_str[16];
+                format_float_value(value_str, sizeof(value_str), value);
+
+                // 对于位置限值，同时显示度数
+                if (i == 3 || i == 4) {
+                    printf("OK new %s = %s %s (%.2f°)\n",
+                           param_name,
+                           value_str,
+                           limit_param_descs[i].unit,
+                           value * 180.0f / PI);
+                } else {
+                    printf("OK new %s = %s %s\n",
+                           param_name,
+                           value_str,
+                           limit_param_descs[i].unit);
+                }
+                return;
+            }
+        }
+    }
+
+    // 如果两种方式都找不到参数，输出错误信息
+    printf("错误：未找到限值参数 '%s'\n", param_name);
 }
