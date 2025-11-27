@@ -46,11 +46,22 @@ static float foc_math_wrap_angle(float angle)
         return 0.0f;
     }
 
+    // 使用 fmodf 归一化到 [-2π, 2π]
     angle = fmodf(angle, TWO_PI_F);
+
+    // 优化的条件分支，最多2次调整
     if (angle > PI) {
         angle -= TWO_PI_F;
+        // 处理极端情况：角度跳变 > 2π
+        if (angle < -PI) {
+            angle += TWO_PI_F;
+        }
     } else if (angle < -PI) {
         angle += TWO_PI_F;
+        // 处理极端情况：角度跳变 > 2π
+        if (angle > PI) {
+            angle -= TWO_PI_F;
+        }
     }
     return angle;
 }

@@ -22,9 +22,9 @@
 #include "adc.h"
 #include "cordic.h"
 #include "dma.h"
+#include "fdcan.h"
 #include "usart.h"
 #include "tim.h"
-#include "usb.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -106,10 +106,10 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_CORDIC_Init();
   MX_TIM2_Init();
-  MX_USB_PCD_Init();
   MX_ADC2_Init();
   MX_TIM1_Init();
   MX_ADC1_Init();
+  MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
   /* ADC校准 */
@@ -162,9 +162,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV6;
@@ -200,7 +199,7 @@ void SystemClock_Config(void)
 
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
+  * @note   This function is called  when TIM5 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -211,7 +210,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6) {
+  if (htim->Instance == TIM5) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
@@ -221,7 +220,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       // TIM1更新中断 - FOC控制环测试
       uint32_t Tcm1, Tcm2, Tcm3;
 
-      FOC_OpenLoopTest(5000.0f, &Tcm1, &Tcm2, &Tcm3);
+      FOC_OpenLoopTest(80.0f, &Tcm1, &Tcm2, &Tcm3);
 
       // 保存数据供vofa线程使用
       g_Tcm1 = Tcm1;

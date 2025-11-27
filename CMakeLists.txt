@@ -51,9 +51,11 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/vofa_com_threadx.c
     Core/Src/test_threadx.c
     Core/Src/motor_control_threadx.c
+    Core/Src/can_comm_threadx.c
 
     Communication/Src/Vofa.c
     Communication/Src/Vofa_STM32G474.c
+    Communication/Src/can_comm.c
 
     MotorControl/Src/FOC_math.c
     MotorControl/Src/motor_params.c
@@ -67,7 +69,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
     Drivers/CMSIS/DSP/Source/CommonTables/arm_common_tables.c
     Drivers/CMSIS/DSP/Source/ControllerFunctions/arm_sin_cos_f32.c
-    
+
 )
 
 # Add include paths

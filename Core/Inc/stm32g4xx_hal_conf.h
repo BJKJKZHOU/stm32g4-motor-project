@@ -42,7 +42,7 @@
 /*#define HAL_CRC_MODULE_ENABLED   */
 /*#define HAL_CRYP_MODULE_ENABLED   */
 /*#define HAL_DAC_MODULE_ENABLED   */
-/*#define HAL_FDCAN_MODULE_ENABLED   */
+#define HAL_FDCAN_MODULE_ENABLED
 /*#define HAL_FMAC_MODULE_ENABLED   */
 /*#define HAL_HRTIM_MODULE_ENABLED   */
 /*#define HAL_IRDA_MODULE_ENABLED   */
@@ -53,7 +53,7 @@
 /*#define HAL_NAND_MODULE_ENABLED   */
 /*#define HAL_NOR_MODULE_ENABLED   */
 /*#define HAL_OPAMP_MODULE_ENABLED   */
-#define HAL_PCD_MODULE_ENABLED
+/*#define HAL_PCD_MODULE_ENABLED   */
 /*#define HAL_QSPI_MODULE_ENABLED   */
 /*#define HAL_RNG_MODULE_ENABLED   */
 /*#define HAL_RTC_MODULE_ENABLED   */

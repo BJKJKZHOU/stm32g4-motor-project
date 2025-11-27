@@ -40,9 +40,9 @@ target_sources(stm32cubemx INTERFACE
     ../../Core/Src/adc.c
     ../../Core/Src/cordic.c
     ../../Core/Src/dma.c
+    ../../Core/Src/fdcan.c
     ../../Core/Src/usart.c
     ../../Core/Src/tim.c
-    ../../Core/Src/usb.c
     ../../Core/Src/stm32g4xx_it.c
     ../../Core/Src/stm32g4xx_hal_msp.c
     ../../Core/Src/stm32g4xx_hal_timebase_tim.c
@@ -65,13 +65,11 @@ target_sources(stm32cubemx INTERFACE
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pwr_ex.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_cortex.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_cordic.c
+    ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_fdcan.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_uart_ex.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_tim.c
     ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_tim_ex.c
-    ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd.c
-    ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_hal_pcd_ex.c
-    ../../Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_usb.c
     ../../Core/Src/system_stm32g4xx.c
     ../../Middlewares/ST/filex/common/src/fx_directory_attributes_read.c
     ../../Middlewares/ST/filex/common/src/fx_directory_attributes_set.c

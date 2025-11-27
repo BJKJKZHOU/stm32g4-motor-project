@@ -61,12 +61,12 @@ void motor_control_thread_entry(ULONG thread_input)
 
   while (1)
   {
-    // 设置电流环设定值（示例：id_ref=0, iq_ref=0.5）
+    
     g_CurrentLoop.id_setpoint = 0.0f;    // d轴电流设定值
     g_CurrentLoop.iq_setpoint = 0.5f;    // q轴电流设定值
     
     // 线程休眠，等待下一次控制周期
-    tx_thread_sleep(1);  // 休眠10个tick，具体时间根据系统配置调整
+    tx_thread_sleep(1); 
   }
 }
 

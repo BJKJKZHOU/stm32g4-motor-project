@@ -41,7 +41,6 @@
     "cmake.configureOnOpen": false,
     "cmake.ctest.testExplorerIntegrationEnabled": false,
     "cmake.useCMakePresets": "always",
-    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "cmake.configureArgs": [
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],
@@ -49,24 +48,7 @@
     "cmake.preferredGenerators": [
         "Ninja"
     ],
-    
-    // 使用ARM交叉编译器
-    "C_Cpp.default.compilerPath": "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe",
-    "C_Cpp.default.intelliSenseMode": "gcc-arm",
-    "C_Cpp.default.cStandard": "gnu11",
-    "C_Cpp.default.cppStandard": "gnu++17",
-    "C_Cpp.default.includePath": [
-        "${workspaceFolder}/**",
-        "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/arm-none-eabi/include",
-        "E:/ST/STM32CubeCLT_1.16.0/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/12.3.1/include"
-    ],
-    "C_Cpp.default.defines": [
-        "DEBUG",
-        "STM32G474xx",
-        "USE_HAL_DRIVER"
-    ],
-    
-    // Clangd配置 
+
     "clangd.arguments": [
         "--compile-commands-dir=${workspaceFolder}/build/Debug",
         "--background-index",
@@ -75,16 +57,13 @@
     ],
     "clangd.path": "D:/Program Files/LLVM/bin/clangd.exe",
     
-    // CppUTest Test Adapter Configuration
-    // CppUTest Test Adapter Configuration (Correct Settings)
+
     "cpputestTestAdapter.logpanel": false,
     "cpputestTestAdapter.objDumpExecutable": "objdump",
     "cpputestTestAdapter.preLaunchTask": "Run CppUTest Tests",
     "cpputestTestAdapter.testExecutable": "${workspaceFolder}/test_cpputest/build/Debug/FOC_math_Tests_CPPUTest.exe",
     "cpputestTestAdapter.testExecutablePath": "${workspaceFolder}/test_cpputest/build/Debug",
     "cpputestTestAdapter.testLocationFetchMode": "test query",
-
-    // Test Explorer Configuration
     "testing.automaticallyOpenPeekView": "never",
     "testing.automaticallyOpenTestResults": "openOnTestStart",
     "coverage-gutters.manualCoverageFilePaths": [

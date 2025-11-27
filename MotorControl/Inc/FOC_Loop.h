@@ -35,7 +35,7 @@ extern volatile float g_tim1_interrupt_freq_hz;      // TODO 变量未使用 TIM
 /* ======================================================
  开环测试函数
  输入:
- - frequency_rad_s: 电频率参考值，单位 rad/s
+ - speed_rpm: 机械转速参考值，单位 rpm（函数内部自动转换为电角速度 rad/s）
  - Tcm1, Tcm2, Tcm3: 三相PWM占空比计数值 (0-ARR_PERIOD)
  功能：
  1. 根据电频率计算角度增量
@@ -44,7 +44,7 @@ extern volatile float g_tim1_interrupt_freq_hz;      // TODO 变量未使用 TIM
  4. 完整的FOC变换流程（Clark→Park→逆Park→SVPWM）
 ** ======================================================
 */
-void FOC_OpenLoopTest(float frequency_rad_s, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
+void FOC_OpenLoopTest(float speed_rpm, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3);
 
 
 

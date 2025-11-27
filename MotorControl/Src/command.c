@@ -11,7 +11,7 @@
 
 #include "motor_params.h"
 #include "normalization.h"
-#include "usart.h"
+//#include "usart.h"
 
 #include <stdint.h>
 #include <ctype.h>

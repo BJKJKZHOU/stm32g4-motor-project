@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    usb.h
+  * @file    fdcan.h
   * @brief   This file contains all the function prototypes for
-  *          the usb.c file
+  *          the fdcan.c file
   ******************************************************************************
   * @attention
   *
@@ -18,8 +18,8 @@
   */
 /* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __USB_H__
-#define __USB_H__
+#ifndef __FDCAN_H__
+#define __FDCAN_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,15 +32,24 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern PCD_HandleTypeDef hpcd_USB_FS;
+extern FDCAN_HandleTypeDef hfdcan1;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_USB_PCD_Init(void);
+void MX_FDCAN1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+
+/**
+ * @brief  FDCAN 发送消息
+ * @param  id: CAN ID（标准ID，11位）
+ * @param  data: 数据指针
+ * @param  len: 数据长度（0-8字节）
+ * @retval HAL_StatusTypeDef: HAL_OK 或 HAL_ERROR
+ */
+HAL_StatusTypeDef FDCAN_Transmit(uint32_t id, uint8_t *data, uint8_t len);
 
 /* USER CODE END Prototypes */
 
@@ -48,5 +57,5 @@ void MX_USB_PCD_Init(void);
 }
 #endif
 
-#endif /* __USB_H__ */
+#endif /* __FDCAN_H__ */
 
