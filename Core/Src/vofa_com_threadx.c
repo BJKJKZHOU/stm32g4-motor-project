@@ -111,14 +111,14 @@ void vofa_com_thread_entry(ULONG thread_input)
 
   while (1)
   {
-    /* 等待定时器信号量 */
+    
     tx_semaphore_get(&vofa_timer_semaphore, TX_WAIT_FOREVER);
  
-    /* 更新测试数据 */
+    
     Vofa_UpdateTestData();
 
     if (vofa_justfloat_enabled){
-    /* 发送数据到VOFA+ */
+    
       Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
     }
      

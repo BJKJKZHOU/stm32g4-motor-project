@@ -220,7 +220,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       // TIM1更新中断 - FOC控制环测试
       uint32_t Tcm1, Tcm2, Tcm3;
 
-      FOC_OpenLoopTest(80.0f, &Tcm1, &Tcm2, &Tcm3);
+      FOC_OpenLoopTest(3200.0f, &Tcm1, &Tcm2, &Tcm3);
 
       // 保存数据供vofa线程使用
       g_Tcm1 = Tcm1;
@@ -235,12 +235,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
       // 动态调整ADC触发点以优化电流采样时序
       Update_ADC_Trigger_Point(Tcm1, Tcm2, Tcm3);
 
+      tx_semaphore_put(&vofa_timer_semaphore);
   }
   
   if (htim->Instance == TIM2) {
 
     // 信号量处理，直接释放信号
-    tx_semaphore_put(&vofa_timer_semaphore);
+    //tx_semaphore_put(&vofa_timer_semaphore);
 
   }
 
