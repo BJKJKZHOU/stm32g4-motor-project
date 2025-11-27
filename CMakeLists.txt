@@ -51,7 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/vofa_com_threadx.c
     Core/Src/test_threadx.c
     Core/Src/motor_control_threadx.c
-    Core/Src/can_comm_threadx.c
+    
 
     Communication/Src/Vofa.c
     Communication/Src/Vofa_STM32G474.c

@@ -123,7 +123,7 @@ void vofa_com_thread_entry(ULONG thread_input)
     }
      
 
-    //tx_thread_sleep(1);
+    tx_thread_sleep(1);
   }
 
 

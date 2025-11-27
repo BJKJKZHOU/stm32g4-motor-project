@@ -467,7 +467,7 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
     float L_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_INDUCTANCE, params->Ld);
     float Rs_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_IMPEDANCE, params->Rs);
     float psi_m_n = Normalization_ToPerUnit(obs->motor_id, NORMALIZE_FLUX, params->Flux);
-    // 修复1: 正确计算总磁链的期望幅值
+
     // 对于表面贴装永磁同步电机，总磁链幅值就是永磁体磁链
     const float expected_flux_norm_sq = psi_m_n * psi_m_n;
     
@@ -482,10 +482,10 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
     // 计算误差项的范数平方 ||η||²
     float eta_norm_sq_pu = eta_alpha_pu * eta_alpha_pu + eta_beta_pu * eta_beta_pu;
     
-    // 修复2: 保存当前误差用于收敛判定（在状态更新前）
+    // 保存当前误差用于收敛判定（在状态更新前）
     float current_eta_norm_sq = eta_norm_sq_pu;
     
-    // 修复3: 计算误差驱动项 [ψ_m² - ||η||²]
+    // 误差驱动项 [ψ_m² - ||η||²]
     float error_term_pu = expected_flux_norm_sq - eta_norm_sq_pu;
 
     // 论文优化: 强制误差项非正以提高收敛性

@@ -26,7 +26,6 @@
 #include "vofa_com_threadx.h"
 #include "test_threadx.h"
 #include "motor_control_threadx.h"
-#include "can_comm_threadx.h"
 #include "main.h"
 /* USER CODE END Includes */
 
@@ -109,13 +108,7 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
     return ret;
   }
 
-  ret = MOTOR_ThreadX_Init(memory_ptr); // 初始化电机控制线�??
-  if (ret != TX_SUCCESS)
-  {
-    return ret;
-  }
-
-  ret = CAN_Comm_ThreadX_Init(memory_ptr); // 初始化CAN通信线程
+  ret = MOTOR_ThreadX_Init(memory_ptr); // 初始化电机控制线程
   if (ret != TX_SUCCESS)
   {
     return ret;

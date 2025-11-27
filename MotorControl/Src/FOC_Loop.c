@@ -20,7 +20,7 @@
 #include "normalization.h"
 #include "Positioning.h"
 
-#include <math.h>
+//#include <math.h>
 #include <string.h>
 
 // 全局变量 - 用于跟踪电角度

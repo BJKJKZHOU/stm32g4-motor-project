@@ -112,8 +112,31 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  // CAN自检：检查FDCAN状态
+  HAL_FDCAN_StateTypeDef fdcan_state = HAL_FDCAN_GetState(&hfdcan1);
+  if (fdcan_state != HAL_FDCAN_STATE_BUSY) {
+    // FDCAN未正常启动，LED快闪5次报错
+    for(int i=0; i<5; i++) {
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+      HAL_Delay(100);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+      HAL_Delay(100);
+    }
+  } else {
+    // FDCAN正常，LED闪3次表示OK
+    for(int i=0; i<3; i++) {
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+      HAL_Delay(200);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+      HAL_Delay(200);
+    }
+  }
+
+  // 确保LED熄灭
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+
   /* ADC校准 */
-  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);  // 校准ADC1 
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);  // 校准ADC1
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);  // 校准ADC2 
 
   /* 启动双ADC注入通道中断模式：TIM1 CH4双边沿触发三相电流采�??? */

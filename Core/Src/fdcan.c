@@ -40,7 +40,7 @@ void MX_FDCAN1_Init(void)
   hfdcan1.Instance = FDCAN1;
   hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
   hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-  hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
+  hfdcan1.Init.Mode = FDCAN_MODE_EXTERNAL_LOOPBACK;  // 临时改为外部回环模式测试
   hfdcan1.Init.AutoRetransmission = ENABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
@@ -192,8 +192,13 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK)
     {
       // 调用 CAN 通信模块处理接收到的消息
-      extern void CAN_Comm_ProcessRxCommand(FDCAN_RxHeaderTypeDef *rx_header, uint8_t *rx_data);
-      CAN_Comm_ProcessRxCommand(&RxHeader, RxData);
+      extern void CAN_ProcessReceivedMessage(uint32_t id, uint8_t *data, uint8_t len);
+
+      // 计算数据长度（从 DLC 转换为字节数）
+      uint8_t data_len = (RxHeader.DataLength >> 16) & 0x0F;
+      if (data_len > 8) data_len = 8;  // 限制最大长度为8字节
+
+      CAN_ProcessReceivedMessage(RxHeader.Identifier, RxData, data_len);
     }
   }
 }
@@ -209,18 +214,36 @@ HAL_StatusTypeDef FDCAN_Transmit(uint32_t id, uint8_t *data, uint8_t len)
 {
   FDCAN_TxHeaderTypeDef TxHeader;
 
+  // 限制数据长度为0-8字节
+  if (len > 8) len = 8;
+
+  // 将字节长度转换为 FDCAN DLC 值
+  uint32_t dlc_value;
+  switch (len)
+  {
+    case 0:  dlc_value = FDCAN_DLC_BYTES_0; break;
+    case 1:  dlc_value = FDCAN_DLC_BYTES_1; break;
+    case 2:  dlc_value = FDCAN_DLC_BYTES_2; break;
+    case 3:  dlc_value = FDCAN_DLC_BYTES_3; break;
+    case 4:  dlc_value = FDCAN_DLC_BYTES_4; break;
+    case 5:  dlc_value = FDCAN_DLC_BYTES_5; break;
+    case 6:  dlc_value = FDCAN_DLC_BYTES_6; break;
+    case 7:  dlc_value = FDCAN_DLC_BYTES_7; break;
+    case 8:  dlc_value = FDCAN_DLC_BYTES_8; break;
+    default: dlc_value = FDCAN_DLC_BYTES_8; break;
+  }
+
   // 配置发送头
   TxHeader.Identifier = id;                      // CAN ID
   TxHeader.IdType = FDCAN_STANDARD_ID;           // 标准ID
   TxHeader.TxFrameType = FDCAN_DATA_FRAME;       // 数据帧
-  TxHeader.DataLength = len << 16;               // 数据长度（需要左移16位）
+  TxHeader.DataLength = dlc_value;               // 数据长度（使用正确的DLC值）
   TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeader.BitRateSwitch = FDCAN_BRS_OFF;        // 经典CAN不使用BRS
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;         // 经典CAN格式
   TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
   TxHeader.MessageMarker = 0;
 
-  
   if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, data) != HAL_OK)
   {
     return HAL_ERROR;
