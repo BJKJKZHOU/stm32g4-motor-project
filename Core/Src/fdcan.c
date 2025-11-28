@@ -21,7 +21,23 @@
 #include "fdcan.h"
 
 /* USER CODE BEGIN 0 */
+/**
+ * @brief Convert a FDCAN DLC value to the number of payload bytes.
+ * @note  DLC encoding is not linear once it exceeds 8, so use a lookup table.
+ */
+static uint8_t FDCAN_DlcToBytes(uint32_t dlc)
+{
+  static const uint8_t dlc_bytes[16] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64
+  };
 
+  if (dlc < (sizeof(dlc_bytes) / sizeof(dlc_bytes[0])))
+  {
+    return dlc_bytes[dlc];
+  }
+
+  return 0;
+}
 /* USER CODE END 0 */
 
 FDCAN_HandleTypeDef hfdcan1;
@@ -40,7 +56,7 @@ void MX_FDCAN1_Init(void)
   hfdcan1.Instance = FDCAN1;
   hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
   hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
-  hfdcan1.Init.Mode = FDCAN_MODE_EXTERNAL_LOOPBACK;  // 临时改为外部回环模式测试
+  hfdcan1.Init.Mode = FDCAN_MODE_INTERNAL_LOOPBACK;
   hfdcan1.Init.AutoRetransmission = ENABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
@@ -195,8 +211,11 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
       extern void CAN_ProcessReceivedMessage(uint32_t id, uint8_t *data, uint8_t len);
 
       // 计算数据长度（从 DLC 转换为字节数）
-      uint8_t data_len = (RxHeader.DataLength >> 16) & 0x0F;
-      if (data_len > 8) data_len = 8;  // 限制最大长度为8字节
+      uint8_t data_len = FDCAN_DlcToBytes(RxHeader.DataLength);
+      if (data_len > sizeof(RxData))
+      {
+        data_len = sizeof(RxData);  // 限制最大长度为8字节
+      }
 
       CAN_ProcessReceivedMessage(RxHeader.Identifier, RxData, data_len);
     }

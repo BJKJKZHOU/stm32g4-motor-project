@@ -81,19 +81,17 @@ void MX_GPIO_Init(void)
  */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+  // 延时
   static uint32_t last_press_time = 0;
   uint32_t current_time = HAL_GetTick();
 
-  if (GPIO_Pin == GPIO_PIN_13)  // 用户按键（PC13）
+  if (GPIO_Pin == GPIO_PIN_13) 
   {
-    // 防抖：200ms内的重复触发忽略
-    if (current_time - last_press_time < 200) {
+    // 防抖：10ms内的重复触发忽略
+    if (current_time - last_press_time < 10) {
       return;
     }
     last_press_time = current_time;
-
-    // 按键触发：翻转LED
-    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
 
     // 调用 CAN 通信模块发送测试消息
     extern HAL_StatusTypeDef CAN_SendButtonTest(void);
@@ -102,3 +100,4 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 }
 
 /* USER CODE END 2 */
+

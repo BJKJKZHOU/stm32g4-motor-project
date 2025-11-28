@@ -56,10 +56,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-// �????????????环测试输出数�????????????
+
 volatile uint32_t g_Tcm1 = 0;
 volatile uint32_t g_Tcm2 = 0;
 volatile uint32_t g_Tcm3 = 0;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -112,44 +114,20 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
-  // CAN自检：检查FDCAN状态
-  HAL_FDCAN_StateTypeDef fdcan_state = HAL_FDCAN_GetState(&hfdcan1);
-  if (fdcan_state != HAL_FDCAN_STATE_BUSY) {
-    // FDCAN未正常启动，LED快闪5次报错
-    for(int i=0; i<5; i++) {
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-      HAL_Delay(100);
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-      HAL_Delay(100);
-    }
-  } else {
-    // FDCAN正常，LED闪3次表示OK
-    for(int i=0; i<3; i++) {
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
-      HAL_Delay(200);
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-      HAL_Delay(200);
-    }
-  }
-
-  // 确保LED熄灭
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-
   /* ADC校准 */
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);  // 校准ADC1
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);  // 校准ADC2 
 
-  /* 启动双ADC注入通道中断模式：TIM1 CH4双边沿触发三相电流采�??? */
+  /* 启动双ADC注入通道中断模式：TIM1 CH4双边沿触发三相电流采样 */
   HAL_ADCEx_InjectedStart_IT(&hadc1);  // 启动ADC1
   HAL_ADCEx_InjectedStart_IT(&hadc2);  // 启动ADC2
 
   /* Initialize motor parameters */
-  MotorParams_Init();   //初始化电机参�??????
-  Normalization_Init(); //初始化归�??????化参�??????  
+  MotorParams_Init();   //初始化电机参数
+  Normalization_Init(); //初始化归一化参数
   
   MotorParams_SetActiveMotor(MOTOR_0);
   Normalization_UpdateMotor(MOTOR_0);
-  
 
 
   /* USER CODE END 2 */
@@ -218,6 +196,8 @@ void SystemClock_Config(void)
 
 
 
+
+
 /* USER CODE END 4 */
 
 /**
@@ -262,6 +242,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   
   if (htim->Instance == TIM2) {
+
 
     // 信号量处理，直接释放信号
     //tx_semaphore_put(&vofa_timer_semaphore);

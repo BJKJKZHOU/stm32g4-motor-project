@@ -107,7 +107,7 @@ void vofa_com_thread_entry(ULONG thread_input)
   Vofa_SetChannelName(RECEIVING_CHANNEL_15, "Ic_Current");
   
 
-  HAL_TIM_Base_Start_IT(&htim2);
+  //HAL_TIM_Base_Start_IT(&htim2);
 
   while (1)
   {

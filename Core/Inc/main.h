@@ -94,6 +94,12 @@ void Error_Handler(void);
 
 /* USER CODE END Private defines */
 
+/* USER CODE BEGIN Private variables */
+
+extern volatile uint32_t uwLEDToggleTime;
+extern volatile uint8_t LED_Toggle_Flag;
+/* USER CODE END Private variables */
+
 #ifdef __cplusplus
 }
 #endif

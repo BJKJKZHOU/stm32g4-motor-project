@@ -54,9 +54,16 @@ HAL_StatusTypeDef CAN_SendButtonTest(void)
  */
 void CAN_ProcessReceivedMessage(uint32_t id, uint8_t *data, uint8_t len)
 {
-  // 回环模式：收到消息后翻转LED
-  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-
+  // 回环模式：收到自己发送的消息时翻转LED
+  if (id == CAN_ID_MCU_TO_HOST && len >= 8)
+  {
+    // 检查是否是按键测试消息（消息类型0x01）
+    if (data[0] == 0x01 && data[1] == 0x01)
+    {
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+    }
+  }
+  
   // 检查是否是来自上位机的 LED 控制命令（正常模式使用）
   if (id == CAN_ID_HOST_TO_MCU && len >= 2)
   {
