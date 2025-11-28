@@ -65,7 +65,7 @@ void FOC_OpenLoopTest(float speed_rpm, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t 
     Clarke Transform1 转换为αβ轴电流，
     （需要一个根据电压基值和SVPWM输出的参数计算逆变器输出电压的函数）
     注意要将逆变器输出的三相电压也转换为αβ轴电压
-    非线性观测器 估计电角度，注意要将电流和电压都输入非线性观测器
+    非线性磁链观测器 估计电角度，注意要将电流和电压都输入非线性磁链观测器
     获得角度，SinCos Embedded Optimized 计算sin和cos值，
     Park Transform 转换为dq轴电流，此为反馈的电流，用于PID控制器的输入。
 
@@ -80,8 +80,8 @@ typedef struct {
     PID_Params_t pid_q_params;      // q轴电流PID参数
     PID_State_t pid_q_state;        // q轴电流PID状态
 
-    // 非线性观测器
-    NonlinearObs_Position_t position_observer;  // 位置观测器
+    // 非线性磁链观测器
+    NonlinearObs_Position_t position_observer;  // 非线性磁链观测器（基于磁链估计位置）
 
     // 控制周期
     float dt;                       // 控制周期 (s)
@@ -183,7 +183,7 @@ typedef struct {
  * @param ki 速度环积分系数（标幺值）
  * @param pll_kp PLL观测器比例增益（推荐：100-500）
  * @param pll_ki PLL观测器积分增益（推荐：1000-5000）
- * @param initial_theta_rad 初始电角度（弧度），来自IPD或非线性观测器
+ * @param initial_theta_rad 初始电角度（弧度），来自IPD或非线性磁链观测器
  * @note 速度限制自动从电机参数中获取并转换为电角速度
  */
 void SpeedLoop_Init(SpeedLoop_t *loop, uint8_t motor_id, float dt,
@@ -195,7 +195,7 @@ void SpeedLoop_Init(SpeedLoop_t *loop, uint8_t motor_id, float dt,
  * @brief 速度环主控制函数
  * @param loop 速度环控制器结构体指针
  * @param omega_ref 速度设定值 (电角速度，rad/s)
- * @param theta_measured_rad 测量的电角度（弧度），来自非线性观测器
+ * @param theta_measured_rad 测量的电角度（弧度），来自非线性磁链观测器
  * @param id_ref 输出：d轴电流设定值 (标幺值)，通常设为0（SPMSM）
  * @param iq_ref 输出：q轴电流设定值 (标幺值)
  * @return true=成功, false=失败

@@ -9,11 +9,11 @@ MotorControl 是为 STM32G4 平台设计的永磁同步电机（PMSM）磁场定
 - **多电机支持**：支持多个独立电机参数套，动态激活/停用
 - **归一化系统**：基于硬件能力的标幺值计算，确保数值稳定性
 - **电流采样**：双ADC同步采样，动态触发点调整，支持高占空比场景
-- **位置估计**：IPD脉冲法转子初始定位 + 非线性观测器无传感器位置估计
+- **位置估计**：IPD脉冲法转子初始定位 + 非线性磁链观测器无传感器位置估计
 - **FOC算法**：完整的Clarke/Park变换、SVPWM调制，集成CORDIC硬件加速
 - **统一控制器**：PID/PDFF统一算法，支持电流环和速度环
 - **实时命令**：串口命令交互，支持参数查看和修改
-- **电流环控制**：完整的闭环电流控制，集成非线性观测器
+- **电流环控制**：完整的闭环电流控制，集成非线性磁链观测器
 
 ### 1.2 模块架构
 
@@ -158,7 +158,7 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 1. ADC采集三相电流
 2. Clarke变换：abc → αβ
 3. 计算逆变器输出电压（αβ坐标系）
-4. 非线性观测器估计电角度
+4. 非线性磁链观测器估计电角度
 5. Park变换：αβ → dq（电流反馈）
 6. PID控制器计算dq轴电压（含解耦补偿）
 7. 逆Park变换：dq → αβ（电压输出）
@@ -172,7 +172,7 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 
 ### 2.8 位置估计 (Positioning)
 
-**功能**：IPD脉冲法转子初始定位 + 非线性观测器无传感器位置估计。
+**功能**：IPD脉冲法转子初始定位 + 非线性磁链观测器无传感器位置估计。
 
 #### IPD脉冲法转子初始定位
 
@@ -187,12 +187,12 @@ PWM输出 ← SVPWM调制 ← 逆Park变换 ← PID控制器 ← 标幺值
 - `IPD_ExecutePulseSequence()` - 执行完整的12脉冲定位序列
 - `IPD_CalculateRotorPosition()` - 计算转子位置
 
-#### 非线性观测器无传感器位置估计
+#### 非线性磁链观测器无传感器位置估计
 
 **基于论文**：Sensorless Control of Surface-Mount Permanent-Magnet Synchronous Motors Based on a Nonlinear Observer
 
 **核心API**：
-- `NonlinearObs_Position_Init()` - 初始化非线性观测器
+- `NonlinearObs_Position_Init()` - 初始化非线性磁链观测器
 - `NonlinearObs_Position_Update()` - 更新观测器状态
 - `NonlinearObs_Position_GetThetaRad()` - 获取位置估计（弧度）
 - `NonlinearObs_Position_GetThetaDeg()` - 获取位置估计（度）

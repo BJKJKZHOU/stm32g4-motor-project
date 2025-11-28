@@ -160,7 +160,7 @@ void CurrentLoop_Init(CurrentLoop_t *loop, uint8_t motor_id, float dt,
     loop->pid_q_state.integral = 0.0f;
     loop->pid_q_state.prev_error = 0.0f;
 
-    // 初始化非线性观测器
+    // 初始化非线性磁链观测器
     NonlinearObs_Position_Init(&loop->position_observer, motor_id, observer_gamma);
 
     // 初始化PWM输出为中点值（50%占空比）
@@ -259,7 +259,7 @@ bool CurrentLoop_Run(CurrentLoop_t *loop, float id_ref, float iq_ref,
     float u_beta_pu = Normalization_ToPerUnit(loop->motor_id, NORMALIZE_VOLTAGE, u_beta);
 
     // ========================================================================
-    // 步骤4：非线性观测器估计电角度
+    // 步骤4：非线性磁链观测器估计电角度
     // ========================================================================
     NonlinearObs_Position_Update(&loop->position_observer,
                                 i_alpha_pu, i_beta_pu,

@@ -15,7 +15,7 @@
 #endif
 
 /**
- * @brief 非线性观测器初始化
+ * @brief 非线性磁链观测器初始化
  */
 void NonlinearObs_Position_Init(NonlinearObs_Position_t *obs, uint8_t motor_id, float gamma)
 {
@@ -36,7 +36,7 @@ void NonlinearObs_Position_Init(NonlinearObs_Position_t *obs, uint8_t motor_id, 
 }
 
 /**
- * @brief 非线性观测器复位
+ * @brief 非线性磁链观测器复位
  */
 void NonlinearObs_Position_Reset(NonlinearObs_Position_t *obs)
 {
@@ -52,7 +52,7 @@ void NonlinearObs_Position_Reset(NonlinearObs_Position_t *obs)
 }
 
 /**
- * @brief 非线性观测器更新（简化实现）
+ * @brief 非线性磁链观测器更新（简化实现）
  * @note 这是一个简化的桩函数，实际观测器算法更复杂
  */
 void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
@@ -65,7 +65,7 @@ void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs,
     }
 
     // 简化实现：使用电流矢量角度作为位置估计
-    // 实际的非线性观测器算法要复杂得多
+    // 实际的非线性磁链观测器算法要复杂得多
     if (fabsf(i_alpha_pu) > 1e-6f || fabsf(i_beta_pu) > 1e-6f) {
         obs->theta_hat_rad = atan2f(i_beta_pu, i_alpha_pu);
         obs->theta_hat_deg = obs->theta_hat_rad * 180.0f / PI;

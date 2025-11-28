@@ -248,5 +248,5 @@ TEST(PLL_SpeedObserver, RejectsInvalidParameters)
     CHECK_TRUE(pll.is_initialized);
 }
 
-// 与非线性观测器集成的测试暂时注释掉
+// 与非线性磁链观测器集成的测试暂时注释掉
 // 因为需要完整的 normalization_stub 支持

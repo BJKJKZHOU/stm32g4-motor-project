@@ -226,10 +226,10 @@ float IPD_CalculateRotorPosition(IPD_Pulse_t pulses[12]);
 bool IPD_DetectRotorPositionEx(const IPD_Config_t *config, float *angle_deg, IPD_Pulse_t pulses[12]);
 
 //=============================================================================
-// 非线性观测器结构体 (使用项目归一化参数)
+// 非线性磁链观测器结构体 (使用项目归一化参数，基于磁链估计位置)
 typedef struct {
     uint8_t motor_id;                    // 电机ID，用于获取对应参数
-    
+
     // 观测器增益参数 (归一化值)
     float gamma;                         // 观测器增益 > 0
     
@@ -258,7 +258,7 @@ typedef struct {
     
 } NonlinearObs_Position_t;
 
-// 非线性观测器函数声明
+// 非线性磁链观测器函数声明
 void NonlinearObs_Position_Init(NonlinearObs_Position_t *obs, uint8_t motor_id, float gamma);
 void NonlinearObs_Position_Reset(NonlinearObs_Position_t *obs);
 void NonlinearObs_Position_Update(NonlinearObs_Position_t *obs, 
@@ -303,12 +303,12 @@ typedef struct {
  * @param kp 比例增益（推荐：100-500）
  * @param ki 积分增益（推荐：1000-5000）
  * @param initial_theta_rad 初始角度（电角度，弧度）
- *                          可从IPD或非线性观测器获取
+ *                          可从IPD或非线性磁链观测器获取
  * @note 使用示例：
  *       ```c
  *       PLL_SpeedObserver_t pll_obs;
  *
- *       // 从非线性观测器获取初始角度
+ *       // 从非线性磁链观测器获取初始角度
  *       float init_angle = NonlinearObs_Position_GetThetaRad(&nonlinear_obs);
  *
  *       // 初始化PLL（Kp=200, Ki=2000）
@@ -325,7 +325,7 @@ void PLL_SpeedObserver_Init(PLL_SpeedObserver_t *pll,
  * @brief PLL速度观测器更新
  * @param pll PLL观测器结构体指针
  * @param theta_measured_rad 测量角度（电角度，弧度）
- *                           通常来自非线性观测器或编码器
+ *                           通常来自非线性磁链观测器或编码器
  * @param dt 采样时间（秒），例如 0.00005f（20kHz）
  */
 void PLL_SpeedObserver_Update(PLL_SpeedObserver_t *pll,

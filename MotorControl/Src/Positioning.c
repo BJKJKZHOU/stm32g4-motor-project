@@ -367,7 +367,7 @@ bool IPD_ExecutePulseSequence(IPD_Pulse_t pulses[12], const IPD_Config_t *config
 
 
 /*============================================================================
- * 非线性观测器实现 - 基于论文 "Sensorless Control of Surface-Mount
+ * 非线性磁链观测器实现 - 基于论文 "Sensorless Control of Surface-Mount
  * Permanent-Magnet Synchronous Motors Based on a Nonlinear Observer"
  *===========================================================================*/
 
