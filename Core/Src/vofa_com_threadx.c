@@ -2,17 +2,29 @@
     File Name     : vofa_com_threadx.c
     Description   : vofa串口调试助手的通信线程·
     Author        : ZHOUHENG
-    Date          : 2025-11-03  
-    ----------------------------------------------------------------------  
-    
-    
+    Date          : 2025-11-03
+    ----------------------------------------------------------------------
+    修改记录：
+    2025-11-28: 增加 RTT J-Scope 支持，通过宏切换 UART/RTT
+
+    使用说明：
+    - 定义 USE_RTT_JSCOPE 宏：使用 RTT 发送数据到 J-Scope
+    - 不定义 USE_RTT_JSCOPE：使用 UART 发送数据到 VOFA+
 *=============================================================================
 */
 
 #include "vofa_com_threadx.h"
 #include "Current.h"
 #include "tim.h"
-#include "Vofa_STM32G474.h"
+
+/* 条件编译：选择 UART 或 RTT */
+#define USE_RTT_JSCOPE  // 取消注释以使用 RTT，注释掉以使用 UART
+
+#ifdef USE_RTT_JSCOPE
+  #include "rtt_jscope.h"
+#else
+  #include "Vofa_STM32G474.h"
+#endif
 
 
 // 声明外部全局变量 - 来自main.c中断
@@ -40,8 +52,10 @@ TX_THREAD vofa_com_thread;
 /* 信号量定义 */
 TX_SEMAPHORE vofa_timer_semaphore;
 
-/* Vofa句柄 */
+#ifndef USE_RTT_JSCOPE
+/* Vofa句柄（仅 UART 模式） */
 Vofa_HandleTypedef vofa_handle;
+#endif
 
 #define TEST_DATA_COUNT 15 //发送到上位机通道数
 static float test_data[TEST_DATA_COUNT] = {0};
@@ -94,39 +108,47 @@ void vofa_com_thread_entry(ULONG thread_input)
 {
   UNUSED(thread_input);
 
+#ifdef USE_RTT_JSCOPE
+  // RTT J-Scope 模式初始化
+  RTT_JScope_Init();
+#else
+  // UART VOFA+ 模式初始化
   Vofa_STM32G474_Init(&vofa_handle, VOFA_MODE_BLOCK_IF_FIFO_FULL);
 
   // 设置接收通道名称
   Vofa_SetChannelName(RECEIVING_CHANNEL_10, "TEST_DATA_1");
-  Vofa_SetChannelName(RECEIVING_CHANNEL_11, "TEST_DATA_2"); 
+  Vofa_SetChannelName(RECEIVING_CHANNEL_11, "TEST_DATA_2");
   Vofa_SetChannelName(RECEIVING_CHANNEL_12, "TEST_DATA_3");
-  
+
   // 设置电流采样数据通道名称
   Vofa_SetChannelName(RECEIVING_CHANNEL_13, "Ia_Current");
   Vofa_SetChannelName(RECEIVING_CHANNEL_14, "Ib_Current");
   Vofa_SetChannelName(RECEIVING_CHANNEL_15, "Ic_Current");
-  
+#endif
 
   //HAL_TIM_Base_Start_IT(&htim2);
 
   while (1)
   {
-    
+    // 等待信号量（与电流环同步）
     tx_semaphore_get(&vofa_timer_semaphore, TX_WAIT_FOREVER);
- 
-    
+
+    // 更新测试数据
     Vofa_UpdateTestData();
 
-    if (vofa_justfloat_enabled){
-    
+    // 发送数据
+    if (vofa_justfloat_enabled) {
+#ifdef USE_RTT_JSCOPE
+      // RTT 发送（极快，不阻塞）
+      RTT_JScope_SendData(test_data, TEST_DATA_COUNT);
+#else
+      // UART 发送（较慢，可能阻塞）
       Vofa_JustFloat(&vofa_handle, test_data, TEST_DATA_COUNT);
+#endif
     }
-     
 
     tx_thread_sleep(1);
   }
-
-
 }
 
 void Vofa_UpdateTestData(void)

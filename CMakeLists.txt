@@ -57,6 +57,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Communication/Src/Vofa_STM32G474.c
     Communication/Src/can_comm.c
 
+    Communication/SEGGER_RTT/SEGGER_RTT.c
+    Communication/SEGGER_RTT/SEGGER_RTT_printf.c
+    Communication/Src/rtt_jscope.c
+
     MotorControl/Src/FOC_math.c
     MotorControl/Src/motor_params.c
     MotorControl/Src/command.c
@@ -78,6 +82,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Communication/Inc
     MotorControl/Inc
     Drivers/CMSIS/DSP/Include
+    Communication/SEGGER_RTT
+    
 )
 
 # Add project symbols (macros)

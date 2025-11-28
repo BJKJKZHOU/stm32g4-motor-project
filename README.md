@@ -14,9 +14,13 @@
 - **多电机支持**：支持多个独立电机参数套，动态激活/停用
 - **实时操作系统**：基于 Eclipse ThreadX RTOS 的多线程架构
 - **电流采样**：双 ADC 同步采样，动态触发点调整，支持高占空比场景
-- **位置估计**：IPD 脉冲法转子初始定位
-- **串口交互**：命令行接口，支持参数查看和修改
-- **数据可视化**：集成 VOFA+ 串口调试助手，实时波形显示
+- **位置估计**：IPD 脉冲法转子初始定位，PLL 速度观测器
+- **速度环控制**：PI/PDFF控制器 + PLL 观测器，支持速度和电流限幅
+- **轨迹规划**：速度模式 T型/S型曲线，支持定时和持续运行模式
+- **限值管理**：多层级保护（电流、速度、位置限值），可通过命令配置
+- **串口交互**：命令行接口，支持参数查看和修改（motor、set、limit 命令）
+- **CAN 通信**：FDCAN 总线支持，已完成内部回环测试
+- **数据可视化**：VOFA+ 串口调试、SEGGER RTT
 - **单元测试**：基于 CppUTest 的完整测试框架，支持代码覆盖率分析
 
 ## 技术栈
@@ -59,8 +63,9 @@ stm32g4-motor-project/
 │   │   ├── motor_params.h    # 电机参数管理
 │   │   ├── normalization.h   # 标幺化模块
 │   │   ├── Current.h         # 电流采样
-│   │   ├── Positioning.h     # 位置估计（IPD）
-│   │   ├── FOC_Loop.h        # FOC 控制循环
+│   │   ├── Positioning.h     # 位置估计（IPD、PLL）
+│   │   ├── FOC_Loop.h        # FOC 控制循环（电流环、速度环）
+│   │   ├── Location_Plan.h   # 轨迹规划（速度模式 T/S型曲线）
 │   │   └── command.h         # 串口命令解析
 │   ├── Src/                  # 实现文件
 │   └── README.md             # 模块详细文档
@@ -123,23 +128,6 @@ cmake ..
 cmake --build .
 ```
 
-### 烧录程序
-
-**方法 1：使用 STM32CubeProgrammer**
-```bash
-cmake --build build --target flash
-```
-
-**方法 2：使用 J-Link**
-```bash
-cmake --build build --target flash_jlink
-```
-
-**方法 3：使用 OpenOCD**
-```bash
-openocd -f st_nucleo_g4.cfg -c "program build/stm32g4-motor-project-ex.elf verify reset exit"
-```
-
 ### 运行测试
 
 ```powershell
@@ -181,6 +169,13 @@ set motor0 RPM_rated = 3000
 # 激活电机
 set motor0 enable
 
+# 查看限值参数
+limit motor0
+
+# 设置限值
+set motor0 I_limit_user = 10.0
+set motor0 speed_limit_user = 5000
+
 # 启动 VOFA 数据绘图
 plot
 
@@ -194,8 +189,8 @@ plot stop
 // 在 TIM1 中断中调用
 void TIM1_UP_IRQHandler(void) {
     uint32_t Tcm1, Tcm2, Tcm3;
-    float frequency = 10.0f;  // 10 rad/s 电频率
-    FOC_OpenLoopTest(frequency, &Tcm1, &Tcm2, &Tcm3);
+    float speed_rpm = 100.0f;  // 100 rpm 机械转速
+    FOC_OpenLoopTest(speed_rpm, &Tcm1, &Tcm2, &Tcm3);
 
     // 更新 PWM 占空比
     TIM1->CCR1 = Tcm1;
@@ -269,10 +264,14 @@ cd test_cpputest
 - [x] 单元测试框架
 - [x] 闭环电流控制
 - [x] 速度环控制
+- [x] 速度模式轨迹规划（T型/S型曲线，支持定时和持续模式）
+- [x] 限值管理系统（电流、速度、位置限值）
+- [ ] CAN 通信（FDCAN，已完成回环测试）
+- [ ] RTT 高速调试（J-Scope 支持）
 - [ ] 位置环控制
-- [ ] 位置和速度轨迹规划T/S型
+- [ ] 位置模式轨迹规划（T型/S型曲线）
 - [ ] 编码器接口
-- [ ] 无感 FOC (磁链观测器)
+- [ ] 无感 FOC（磁链观测器）
 - [ ] 弱磁控制
 
 
