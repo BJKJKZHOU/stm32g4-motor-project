@@ -18,7 +18,7 @@
 #include "tim.h"
 
 /* 条件编译：选择 UART 或 RTT */
-#define USE_RTT_JSCOPE  // 取消注释以使用 RTT，注释掉以使用 UART
+//#define USE_RTT_JSCOPE  // 取消注释以使用 RTT，注释掉以使用 UART
 
 #ifdef USE_RTT_JSCOPE
   #include "rtt_jscope.h"
@@ -147,7 +147,7 @@ void vofa_com_thread_entry(ULONG thread_input)
 #endif
     }
 
-    tx_thread_sleep(1);
+    //tx_thread_sleep(1);
   }
 }
 

@@ -116,7 +116,7 @@ uint32_t HAL_GetTick(void);
 
 // ARR_PERIOD宏定义（通常在tim.h中定义）
 #ifndef ARR_PERIOD
-#define ARR_PERIOD 4250  // 测试用的默认值
+#define ARR_PERIOD 5312  // 测试用的默认值
 #endif
 
 // DWT（Data Watchpoint and Trace）相关定义

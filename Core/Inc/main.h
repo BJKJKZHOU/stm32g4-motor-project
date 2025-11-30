@@ -57,14 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define PWM_FREQUENCY 16000
 #define TIM_CLK_MHz 170
-#define PWM_FREQUENCY 20000
 
 /* USER CODE BEGIN Private defines */
 
 
 
-#define ARR_PERIOD ((uint32_t)((TIM_CLK_MHz * 1000000.0f / PWM_FREQUENCY) / 2.0f)) // =4250
+#define ARR_PERIOD ((uint32_t)((TIM_CLK_MHz * 1000000.0f / PWM_FREQUENCY) / 2.0f)) 
 
 #define TPWM_PERIOD (1.0f/PWM_FREQUENCY) // 1/20000 = 0.00005s
 
@@ -78,7 +78,7 @@ void Error_Handler(void);
 #define TRIGGER_MARGIN      300     // 触发点距ARR的裕量，提供600个计数的采样窗口（向上+向下）
 #define TRIGGER_HIGH_SIDE   ((uint32_t)(ARR_PERIOD - TRIGGER_MARGIN))  // 高侧触发点（ARR-300）
 
-// 占空比阈值（基于ARR_PERIOD=4249）
+// 占空比阈值（基于ARR_PERIOD=5312）
 #define DUTY_THRESHOLD_HIGH ((uint32_t)(TRIGGER_HIGH_SIDE - TIM1_DEADTIME))  // 约3864，90%占空比
 #define DUTY_THRESHOLD_LOW  ((uint32_t)(ARR_PERIOD * 0.10f))  // 10%占空比阈值，约425
 #define DUTY_CRITICAL_HIGH  ((uint32_t)(ARR_PERIOD * 0.98f))  // 98%占空比阈值，约4164
@@ -93,10 +93,6 @@ void Error_Handler(void);
 #define CCMRAM_CONST __attribute__((section(".ccmram"))) const
 
 /* USER CODE END Private defines */
-
-/* USER CODE BEGIN Private variables */
-
-/* USER CODE END Private variables */
 
 #ifdef __cplusplus
 }

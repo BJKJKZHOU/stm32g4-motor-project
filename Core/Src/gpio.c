@@ -82,8 +82,8 @@ void MX_GPIO_Init(void)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   // 延时
-  static uint32_t last_press_time = 0;
-  uint32_t current_time = HAL_GetTick();
+   static uint32_t last_press_time = 0;
+   uint32_t current_time = HAL_GetTick();
 
   if (GPIO_Pin == GPIO_PIN_13) 
   {
@@ -100,4 +100,3 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 }
 
 /* USER CODE END 2 */
-

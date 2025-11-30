@@ -63,8 +63,8 @@ TEST(FOC_OpenLoop_Integration, BasicOpenLoopTest)
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
         // 2. 将PWM占空比转换为电压标幺值
-        // ARR_PERIOD = 4250 (从main.h)
-        const float ARR_PERIOD = 4250.0f;
+        // ARR_PERIOD = 5312 (从main.h)
+        const float ARR_PERIOD = 5312.0f;
         float duty1 = (float)Tcm1 / ARR_PERIOD;
         float duty2 = (float)Tcm2 / ARR_PERIOD;
         float duty3 = (float)Tcm3 / ARR_PERIOD;
@@ -95,9 +95,9 @@ TEST(FOC_OpenLoop_Integration, BasicOpenLoopTest)
     CHECK(fabsf(state->Ia) > 0.1f || fabsf(state->Ib) > 0.1f || fabsf(state->Ic) > 0.1f);
 
     // 验证PWM输出在合理范围内
-    CHECK(Tcm1 <= 4250);
-    CHECK(Tcm2 <= 4250);
-    CHECK(Tcm3 <= 4250);
+    CHECK(Tcm1 <= 5312);
+    CHECK(Tcm2 <= 5312);
+    CHECK(Tcm3 <= 5312);
 }
 
 TEST(FOC_OpenLoop_Integration, FrequencyRamp)
@@ -115,7 +115,7 @@ TEST(FOC_OpenLoop_Integration, FrequencyRamp)
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
         // PWM → 电压
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 
@@ -153,7 +153,7 @@ TEST(FOC_OpenLoop_Integration, VerifyCoordinateTransforms)
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
         // PWM → 电压 → 电机
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 
@@ -209,7 +209,7 @@ TEST(ADC_Integration, ADC_CurrentFeedback)
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
         // PWM → 电压
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 
@@ -258,7 +258,7 @@ TEST(ADC_Integration, ADC_WithNoise)
     for (int i = 0; i < 500; i++) {
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 
@@ -304,7 +304,7 @@ TEST(Load_Disturbance, SuddenLoadChange)
     for (int i = 0; i < 2000; i++) {
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 
@@ -327,7 +327,7 @@ TEST(Load_Disturbance, SuddenLoadChange)
     for (int i = 0; i < 2000; i++) {
         FOC_OpenLoopTest(frequency_rad_s, &Tcm1, &Tcm2, &Tcm3);
 
-        const float ARR_PERIOD = 4250.0f;
+        const float ARR_PERIOD = 5312.0f;
         float Ua_pu = ((float)Tcm1 / ARR_PERIOD - 0.5f) * 2.0f;
         float Ub_pu = ((float)Tcm2 / ARR_PERIOD - 0.5f) * 2.0f;
 

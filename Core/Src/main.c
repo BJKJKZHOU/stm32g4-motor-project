@@ -222,23 +222,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
       // TIM1更新中断 - FOC控制环测试
       uint32_t Tcm1, Tcm2, Tcm3;
+      static bool skip_interrupt = false;
+      skip_interrupt = !skip_interrupt;
 
-      FOC_OpenLoopTest(3200.0f, &Tcm1, &Tcm2, &Tcm3);
+      if (!skip_interrupt) {
 
-      // 保存数据供vofa线程使用
-      g_Tcm1 = Tcm1;
-      g_Tcm2 = Tcm2;
-      g_Tcm3 = Tcm3;
+        FOC_OpenLoopTest(3200.0f, &Tcm1, &Tcm2, &Tcm3);
 
-      // 将计算结果写入定时器
-      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
-      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
-      __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
+        // 保存数据供vofa线程使用
+        g_Tcm1 = Tcm1;
+        g_Tcm2 = Tcm2;
+        g_Tcm3 = Tcm3;
 
-      // 动态调整ADC触发点以优化电流采样时序
-      Update_ADC_Trigger_Point(Tcm1, Tcm2, Tcm3);
+        // 将计算结果写入定时器
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, Tcm1);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, Tcm2);
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, Tcm3);
 
-      tx_semaphore_put(&vofa_timer_semaphore);
+        // 动态调整ADC触发点以优化电流采样时序
+        Update_ADC_Trigger_Point(Tcm1, Tcm2, Tcm3);
+        
+        tx_semaphore_put(&vofa_timer_semaphore);
+
+      }
+
+      
   }
   
   if (htim->Instance == TIM2) {
