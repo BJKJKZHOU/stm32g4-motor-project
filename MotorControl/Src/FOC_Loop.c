@@ -20,17 +20,17 @@
 #include "normalization.h"
 #include "Positioning.h"
 
-//#include <math.h>
+#include <math.h>
 #include <string.h>
 
 // 全局变量 - 用于跟踪电角度
 static float g_electrical_angle = 0.0f;
 
-// 电机参数 - 需要根据实际电机调整
-#define MOTOR_POLE_PAIRS 6        // 电机极对数
-#define VOLTAGE_AMPLITUDE 1.0f    // 电压幅值（标幺值），与SVPWM_minmax使用相同的定义 
+// 电机参数 - 默认回退值（实际参数由 motor_params 模块提供）
+#define OPEN_LOOP_DEFAULT_POLE_PAIRS 6.0f
+#define OPEN_LOOP_MIN_VOLTAGE_PU   0.05f
+#define OPEN_LOOP_MAX_VOLTAGE_PU   0.98f
 
-#define SAMPLE_TIME 0.00005f     // 采样时间 50us (20kHz 中断频率)
 
 // 用于调试 - 可以导出查看角度变化
 volatile float g_debug_angle = 0.0f;
@@ -40,6 +40,58 @@ volatile float g_debug_frequency = 0.0f;  // 当前电频率
 
 volatile uint8_t sector = 0;
 
+/**
+ * @brief 获取当前生效的电机ID（未激活则默认选择0号电机）
+ */
+static uint8_t FOC_GetEffectiveMotorId(void)
+{
+    uint8_t active_motor = MotorParams_GetActiveMotor();
+    if (active_motor >= motors_number) {
+        active_motor = MOTOR_0;
+    }
+    return active_motor;
+}
+
+/**
+ * @brief 获取电机极对数（若未配置则回退到默认值）
+ */
+static float FOC_GetPolePairs(uint8_t motor_id)
+{
+    const Motor_Params_t *params = &motor_params[motor_id];
+    return (params->Pn > 0.0f) ? params->Pn : OPEN_LOOP_DEFAULT_POLE_PAIRS;
+}
+
+/**
+ * @brief 简单V/f曲线：根据电角速度计算q轴电压幅值（标幺）
+ */
+static float FOC_ComputeVfVoltagePu(float electrical_rad_s, uint8_t motor_id)
+{
+    const Motor_Params_t *params = &motor_params[motor_id];
+
+    float omega_base = 0.0f;
+    if (params->RPM_rated > 0.0f && params->Pn > 0.0f) {
+        omega_base = (params->RPM_rated * 2.0f * PI / 60.0f) * params->Pn;
+    }
+
+    if (omega_base <= 0.0f) {
+        return OPEN_LOOP_MIN_VOLTAGE_PU;
+    }
+
+    float norm_freq = fabsf(electrical_rad_s) / omega_base;
+    if (norm_freq > 1.0f) {
+        norm_freq = 1.0f;
+    }
+
+    float voltage_pu = OPEN_LOOP_MIN_VOLTAGE_PU +
+                       norm_freq * (OPEN_LOOP_MAX_VOLTAGE_PU - OPEN_LOOP_MIN_VOLTAGE_PU);
+
+    if (voltage_pu > OPEN_LOOP_MAX_VOLTAGE_PU) {
+        voltage_pu = OPEN_LOOP_MAX_VOLTAGE_PU;
+    }
+
+    return voltage_pu;
+}
+
 void FOC_OpenLoopTest(float speed_rpm, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t *Tcm3)
 {
 
@@ -47,32 +99,22 @@ void FOC_OpenLoopTest(float speed_rpm, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t 
     if (Tcm1 == NULL || Tcm2 == NULL || Tcm3 == NULL) {
         return;
     }
+
+    const uint8_t motor_id = FOC_GetEffectiveMotorId();
+    const float pole_pairs = FOC_GetPolePairs(motor_id);
     
     // 1. 将机械转速(rpm)转换为电角速度(rad/s)
     const float rpm_to_rad_per_sec = 2.0f * PI / 60.0f;
     const float mechanical_rad_s = speed_rpm * rpm_to_rad_per_sec;
-    const float electrical_rad_s = mechanical_rad_s * MOTOR_POLE_PAIRS;
+    const float electrical_rad_s = mechanical_rad_s * pole_pairs;
 
     // 2. 根据电角速度计算角度增量
-    float angle_increment = electrical_rad_s * SAMPLE_TIME;
+    float angle_increment = electrical_rad_s * TPWM_PERIOD;
 
     // 3. 更新电角度（保持在[-π, π]范围内）
     g_electrical_angle += angle_increment;
 
-    // 归一化电角度到[-π, π]范围
-    if (g_electrical_angle > PI) {
-        g_electrical_angle -= 2.0f * PI;
-        // 处理极端情况：角度跳变 > 2π
-        if (g_electrical_angle < -PI) {
-            g_electrical_angle += 2.0f * PI;
-        }
-    } else if (g_electrical_angle < -PI) {
-        g_electrical_angle += 2.0f * PI;
-        // 处理极端情况：角度跳变 > 2π
-        if (g_electrical_angle > PI) {
-            g_electrical_angle -= 2.0f * PI;
-        }
-    }
+    g_electrical_angle = FOC_WrapAngle(g_electrical_angle);
     
     // 4. 计算正弦和余弦值（使用CORDIC硬件加速）
     float sin_theta, cos_theta;
@@ -95,10 +137,10 @@ void FOC_OpenLoopTest(float speed_rpm, uint32_t *Tcm1, uint32_t *Tcm2, uint32_t 
     float I_d, I_q;
     Park_Transform(I_alpha, I_beta, sin_theta, cos_theta, &I_d, &I_q);
     
-    // 8. 设置固定的开环电压矢量
-    // 在开环测试中，通常设置U_d=0，U_q为固定值来产生旋转磁场
+    // 8. 设置开环电压矢量
+    // 在开环测试中，设置U_d=0，U_q按照V/f曲线随速度提升
     const float U_d_pu = 0.0f;  // d轴电压设为0
-    const float U_q_pu = VOLTAGE_AMPLITUDE;  // q轴电压使用固定值
+    const float U_q_pu = FOC_ComputeVfVoltagePu(electrical_rad_s, motor_id);
     
     // 9. 逆Park变换：将dq电压转换为αβ电压
     float U_alpha_pu, U_beta_pu;

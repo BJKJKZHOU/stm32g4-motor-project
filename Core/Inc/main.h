@@ -62,11 +62,9 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
-
-
 #define ARR_PERIOD ((uint32_t)((TIM_CLK_MHz * 1000000.0f / PWM_FREQUENCY) / 2.0f)) 
 
-#define TPWM_PERIOD (1.0f/PWM_FREQUENCY) // 1/20000 = 0.00005s
+#define TPWM_PERIOD (1.0f/PWM_FREQUENCY) 
 
 #define PI 3.14159265358979323846f
 
@@ -79,9 +77,9 @@ void Error_Handler(void);
 #define TRIGGER_HIGH_SIDE   ((uint32_t)(ARR_PERIOD - TRIGGER_MARGIN))  // 高侧触发点（ARR-300）
 
 // 占空比阈值（基于ARR_PERIOD=5312）
-#define DUTY_THRESHOLD_HIGH ((uint32_t)(TRIGGER_HIGH_SIDE - TIM1_DEADTIME))  // 约3864，90%占空比
-#define DUTY_THRESHOLD_LOW  ((uint32_t)(ARR_PERIOD * 0.10f))  // 10%占空比阈值，约425
-#define DUTY_CRITICAL_HIGH  ((uint32_t)(ARR_PERIOD * 0.98f))  // 98%占空比阈值，约4164
+#define DUTY_THRESHOLD_HIGH ((uint32_t)(TRIGGER_HIGH_SIDE - TIM1_DEADTIME))  // 
+#define DUTY_THRESHOLD_LOW  ((uint32_t)(ARR_PERIOD * 0.10f))  // 10%占空比阈值
+#define DUTY_CRITICAL_HIGH  ((uint32_t)(ARR_PERIOD * 0.98f))  // 98%占空比阈值
 
 /* 用于在CCM中执行的代码 */
 #define CCMRAM_FUNC __attribute__((section(".ccmtext")))

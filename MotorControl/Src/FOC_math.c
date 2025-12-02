@@ -40,7 +40,7 @@ static float foc_math_saturate(float value, float min_value, float max_value)
 
 
 // 作用：将角度包装到[-π, π]范围内 (Angle wrapping: constrains angle to [-π, π] range)
-static float foc_math_wrap_angle(float angle)
+float FOC_WrapAngle(float angle)
 {
     if (!isfinite(angle)) {
         return 0.0f;
@@ -208,7 +208,7 @@ void Sine_Cosine(float theta_e, float *sin_theta_e, float *cos_theta_e)
         return;
     }
 
-    const float wrapped = foc_math_wrap_angle(theta_e);
+    const float wrapped = FOC_WrapAngle(theta_e);
     
     /* 配置CORDIC用于余弦计算 */
     CORDIC_ConfigTypeDef sConfig = {0};

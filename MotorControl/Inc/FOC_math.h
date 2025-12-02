@@ -123,6 +123,11 @@ extern "C" {
 #endif
 
 
+
+// 作用：将角度包装到[-π, π]范围内
+float FOC_WrapAngle(float angle);
+
+
 /* 数据格式约定:
  * - 相电流必须在调用Clarke_Transform之前转换为标幺值/定点数。
  * - 电角度以弧度(float)形式提供给Sine_Cosine；该函数仅将其包装到[-pi, pi]范围。

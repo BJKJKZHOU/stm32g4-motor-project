@@ -21,6 +21,7 @@
 #include "main.h"
 #include "adc.h"
 #include "cordic.h"
+#include "crc.h"
 #include "dma.h"
 #include "fdcan.h"
 #include "usart.h"
@@ -112,6 +113,7 @@ int main(void)
   MX_TIM1_Init();
   MX_ADC1_Init();
   MX_FDCAN1_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
   /* ADC校准 */
@@ -222,6 +224,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
       // TIM1更新中断 - FOC控制环测试
       uint32_t Tcm1, Tcm2, Tcm3;
+      
       static bool skip_interrupt = false;
       skip_interrupt = !skip_interrupt;
 

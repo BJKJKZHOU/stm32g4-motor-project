@@ -15,7 +15,7 @@
 
 #include "vofa_com_threadx.h"
 #include "Current.h"
-#include "tim.h"
+//#include "tim.h"
 
 /* 条件编译：选择 UART 或 RTT */
 //#define USE_RTT_JSCOPE  // 取消注释以使用 RTT，注释掉以使用 UART
@@ -106,7 +106,7 @@ UINT VOFA_Com_ThreadX_Init(VOID *memory_ptr)
 // Vofa通信线程入口函数
 void vofa_com_thread_entry(ULONG thread_input)
 {
-  UNUSED(thread_input);
+  //UNUSED(thread_input);
 
 #ifdef USE_RTT_JSCOPE
   // RTT J-Scope 模式初始化
